@@ -231,10 +231,27 @@ export const ESGFacilitiesView: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800">
-                    {dev.readings.power && <div>{dev.readings.power.max} kWh</div>}
-                    {dev.readings.co2 && <div className="text-red-700 text-[11px]">{dev.readings.co2.max} kg</div>}
-                    {dev.readings.water && <div className="text-sky-700 text-[11px]">{dev.readings.water.max} m³</div>}
+                  <td className="py-3 px-3 text-right">
+                    <div className="flex flex-col items-end gap-1">
+                      {dev.readings.power && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200/80 px-2 py-0.5 rounded shadow-2xs">
+                          <Zap className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                          <span>{dev.readings.power.max.toLocaleString('vi-VN')} kWh</span>
+                        </span>
+                      )}
+                      {dev.readings.co2 && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono bg-red-50 text-red-800 border border-red-200/80 px-2 py-0.5 rounded shadow-2xs">
+                          <Flame className="w-3 h-3 text-red-500 flex-shrink-0" />
+                          <span>{dev.readings.co2.max.toLocaleString('vi-VN')} kg</span>
+                        </span>
+                      )}
+                      {dev.readings.water && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold font-mono bg-sky-50 text-sky-800 border border-sky-200/80 px-2 py-0.5 rounded shadow-2xs">
+                          <Droplet className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                          <span>{dev.readings.water.max.toLocaleString('vi-VN')} m³</span>
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">{dev.lastMaintenance}</td>
                   <td className="py-3 px-3 text-center">
@@ -376,33 +393,44 @@ export const ESGFacilitiesView: React.FC = () => {
 
               {/* Threshold limits */}
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                <span className="font-semibold text-slate-700 block">Cấu hình định mức tối đa (Max Quota):</span>
+                <span className="font-semibold text-slate-700 block">
+                  Cấu hình định mức an toàn tối đa (Max Quota):
+                </span>
                 <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">Điện tối đa (kWh):</label>
+                  <div className="bg-amber-50/60 p-2 rounded-lg border border-amber-200/70">
+                    <label className="text-[11px] font-bold text-amber-800 flex items-center gap-1 mb-1">
+                      <Zap className="w-3 h-3 text-amber-600" />
+                      <span>Điện (kWh):</span>
+                    </label>
                     <input
                       type="number"
                       value={newDevPower}
                       onChange={(e) => setNewDevPower(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
+                      className="w-full bg-white border border-amber-300 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">CO₂ tối đa (kg):</label>
+                  <div className="bg-red-50/60 p-2 rounded-lg border border-red-200/70">
+                    <label className="text-[11px] font-bold text-red-800 flex items-center gap-1 mb-1">
+                      <Flame className="w-3 h-3 text-red-600" />
+                      <span>CO₂ (kg):</span>
+                    </label>
                     <input
                       type="number"
                       value={newDevCo2}
                       onChange={(e) => setNewDevCo2(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
+                      className="w-full bg-white border border-red-300 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-red-500"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 block mb-0.5">Nước tối đa (m³):</label>
+                  <div className="bg-sky-50/60 p-2 rounded-lg border border-sky-200/70">
+                    <label className="text-[11px] font-bold text-sky-800 flex items-center gap-1 mb-1">
+                      <Droplet className="w-3 h-3 text-sky-600" />
+                      <span>Nước (m³):</span>
+                    </label>
                     <input
                       type="number"
                       value={newDevWater}
                       onChange={(e) => setNewDevWater(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono"
+                      className="w-full bg-white border border-sky-300 rounded px-2 py-1 text-xs font-mono font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                 </div>
