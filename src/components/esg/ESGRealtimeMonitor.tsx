@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { ESGFacilityTree } from './ESGFacilityTree';
 import { QuotaBar150 } from './QuotaBar150';
+import { ESGHeatmapEVN } from './ESGHeatmapEVN';
+import { ESGPredictiveAlert } from './ESGPredictiveAlert';
 import {
   Activity,
   Cpu,
@@ -56,6 +58,35 @@ export const ESGRealtimeMonitor: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [metricFilter, setMetricFilter] = useState<'all' | MetricType>('all');
   const [inspectionSuccessMsg, setInspectionSuccessMsg] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'scada' | 'heatmap' | 'predictive'>('scada');
+
+  // Predictive run-rate check for current active period
+  const checkPredictiveRisk = () => {
+    if (scopedTotals.isClosedPeriod) return false;
+    let totalDays = 31;
+    let elapsedDays = 21;
+    if (timePeriod === 'year_2026') {
+      totalDays = 365;
+      elapsedDays = 294;
+    } else if (timePeriod === 'h2_2026') {
+      totalDays = 184;
+      elapsedDays = 113;
+    } else if (timePeriod === 'q4_2026') {
+      totalDays = 92;
+      elapsedDays = 21;
+    } else if (timePeriod === 'm10_2026') {
+      totalDays = 31;
+      elapsedDays = 21;
+    } else if (timePeriod === 'today') {
+      totalDays = 24;
+      elapsedDays = 16;
+    }
+    const runRate = scopedTotals.powerKWh / elapsedDays;
+    const projected = runRate * totalDays;
+    return projected > scopedTotals.effectivePowerLimit;
+  };
+
+  const isPredictiveRisk = checkPredictiveRisk();
 
   // Live historical points for the deep-dive device waveform
   const [waveformHistory, setWaveformHistory] = useState<number[]>([
@@ -372,15 +403,78 @@ export const ESGRealtimeMonitor: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Split: Facility Tree (3 cols) + Hierarchical Content (9 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
-        {/* Left Tree */}
-        <div className="lg:col-span-4 xl:col-span-3">
-          <ESGFacilityTree />
-        </div>
+      {/* Realtime Sub-Module Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+        <button
+          onClick={() => setActiveSubTab('scada')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeSubTab === 'scada'
+              ? 'bg-teal-700 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>Sơ đồ Cụm Thiết bị & SCADA</span>
+        </button>
 
-        {/* Right Hierarchical Panel */}
-        <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+        <button
+          onClick={() => setActiveSubTab('heatmap')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            activeSubTab === 'heatmap'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5" />
+          <span>Bản đồ nhiệt Phụ tải EVN (24/7 Heatmap)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('predictive')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 relative ${
+            activeSubTab === 'predictive'
+              ? 'bg-red-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+          }`}
+        >
+          <TrendingUp className="w-3.5 h-3.5" />
+          <span>Cảnh báo Dự báo Sớm (Predictive Alert)</span>
+          {isPredictiveRisk && !scopedTotals.isClosedPeriod && (
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute -top-0.5 -right-0.5" />
+          )}
+        </button>
+      </div>
+
+      {/* ================================================================ */}
+      {/* SUB-VIEW 1: SCADA HIERARCHICAL GRID                              */}
+      {/* ================================================================ */}
+      {activeSubTab === 'scada' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
+          {/* Left Tree */}
+          <div className="lg:col-span-4 xl:col-span-3">
+            <ESGFacilityTree />
+          </div>
+
+          {/* Right Hierarchical Panel */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+            {/* Predictive Run-rate Quick Warning Banner in SCADA view */}
+            {isPredictiveRisk && !scopedTotals.isClosedPeriod && (
+              <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-red-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 animate-bounce" />
+                  <span>
+                    <strong>CẢNH BÁO DỰ BÁO SỚM (PREDICTIVE RUN-RATE):</strong> Tốc độ tiêu thụ hiện tại có nguy cơ làm vượt hạn mức {scopedTotals.periodLabel} trước khi kết thúc chu kỳ.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveSubTab('predictive')}
+                  className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[11px] flex-shrink-0 flex items-center gap-1 transition-colors"
+                >
+                  <span>Xem phân tích chi tiết</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           {/* ============================================================== */}
           {/* LEVEL 1: ENTERPRISE VIEW (When Tập đoàn Vinamilk is selected)  */}
           {/* ============================================================== */}
@@ -1732,6 +1826,17 @@ export const ESGRealtimeMonitor: React.FC = () => {
           })()}
         </div>
       </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* SUB-VIEW 2: EVN TARIFF LOAD PROFILE HEATMAP (24/7)               */}
+      {/* ================================================================ */}
+      {activeSubTab === 'heatmap' && <ESGHeatmapEVN />}
+
+      {/* ================================================================ */}
+      {/* SUB-VIEW 3: PREDICTIVE RUN-RATE ALERT & FORECASTING             */}
+      {/* ================================================================ */}
+      {activeSubTab === 'predictive' && <ESGPredictiveAlert />}
     </div>
   );
 };
