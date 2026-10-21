@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { ESGFacilityTree } from './ESGFacilityTree';
+import { QuotaBar150 } from './QuotaBar150';
 import {
   Activity,
   Cpu,
@@ -423,72 +424,99 @@ export const ESGRealtimeMonitor: React.FC = () => {
                         {/* Telemetry Metrics */}
                         <div className="space-y-2.5 my-3 text-xs">
                           {/* Power */}
-                          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="flex items-center gap-1 text-slate-600 font-medium">
                                 <Zap className="w-3.5 h-3.5 text-amber-500" /> Điện tiêu thụ:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatPower(factory.totals.powerKWh)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatPower(factory.totals.powerKWh)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 5.000 kWh</span>
+                                <span
+                                  className={`text-[10px] px-1 py-0.2 rounded font-bold ${
+                                    factory.totals.powerKWh > 5000
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-600 bg-slate-200/60'
+                                  }`}
+                                >
+                                  {Math.round((factory.totals.powerKWh / 5000) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((factory.totals.powerKWh / 5000) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={factory.totals.powerKWh}
+                              max={5000}
+                              baseColor="bg-amber-500"
+                              heightClass="h-2"
+                              showScaleTicks={true}
+                              notchLabel="100%"
+                            />
                           </div>
 
                           {/* CO2 */}
-                          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="flex items-center gap-1 text-slate-600 font-medium">
                                 <Flame className="w-3.5 h-3.5 text-red-500" /> Phát thải CO₂:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatCO2(factory.totals.co2Kg)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatCO2(factory.totals.co2Kg)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 3.500 kg</span>
+                                <span
+                                  className={`text-[10px] px-1 py-0.2 rounded font-bold ${
+                                    factory.totals.co2Kg > 3500
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-600 bg-slate-200/60'
+                                  }`}
+                                >
+                                  {Math.round((factory.totals.co2Kg / 3500) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-red-500 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((factory.totals.co2Kg / 3500) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={factory.totals.co2Kg}
+                              max={3500}
+                              baseColor="bg-orange-500"
+                              heightClass="h-2"
+                              showScaleTicks={true}
+                              notchLabel="100%"
+                            />
                           </div>
 
                           {/* Water */}
-                          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="flex items-center gap-1 text-slate-600 font-medium">
                                 <Droplet className="w-3.5 h-3.5 text-sky-500" /> Nước thải xả:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatWater(factory.totals.waterM3)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatWater(factory.totals.waterM3)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 400 m³</span>
+                                <span
+                                  className={`text-[10px] px-1 py-0.2 rounded font-bold ${
+                                    factory.totals.waterM3 > 400
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-600 bg-slate-200/60'
+                                  }`}
+                                >
+                                  {Math.round((factory.totals.waterM3 / 400) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-sky-500 rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((factory.totals.waterM3 / 400) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={factory.totals.waterM3}
+                              max={400}
+                              baseColor="bg-sky-500"
+                              heightClass="h-2"
+                              showScaleTicks={true}
+                              notchLabel="100%"
+                            />
                           </div>
                         </div>
 
@@ -574,68 +602,107 @@ export const ESGRealtimeMonitor: React.FC = () => {
 
                 {/* Aggregated Totals of This Factory */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 text-xs">
-                  <div className="bg-amber-50/50 border border-amber-200/60 p-3 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-amber-800 font-medium flex items-center gap-1">
-                        <Zap className="w-3.5 h-3.5 text-amber-600" /> Điện tiêu thụ Nhà máy
-                      </span>
-                      <span className="font-mono font-bold text-slate-900 text-sm">
-                        {formatPower(currentFactory.totals.powerKWh)}
-                      </span>
+                  <div className="bg-amber-50/50 border border-amber-200/60 p-3 rounded-lg flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-amber-800 font-medium flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-amber-600" /> Điện tiêu thụ Nhà máy
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 text-sm">
+                          {formatPower(currentFactory.totals.powerKWh)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10.5px] text-amber-900/80 font-mono mt-1">
+                        <span>Định mức: 5.000 kWh</span>
+                        <span
+                          className={`font-bold ${
+                            currentFactory.totals.powerKWh > 5000
+                              ? 'text-red-600 animate-pulse'
+                              : 'text-amber-800'
+                          }`}
+                        >
+                          {Math.round((currentFactory.totals.powerKWh / 5000) * 100)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-full bg-amber-200/50 h-1.5 rounded-full overflow-hidden mt-2">
-                      <div
-                        className="h-full bg-amber-500 rounded-full"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round((currentFactory.totals.powerKWh / 5000) * 100)
-                          )}%`,
-                        }}
+                    <div className="mt-2">
+                      <QuotaBar150
+                        current={currentFactory.totals.powerKWh}
+                        max={5000}
+                        baseColor="bg-amber-500"
+                        heightClass="h-2"
+                        showScaleTicks={true}
+                        notchLabel="100%"
                       />
                     </div>
                   </div>
 
-                  <div className="bg-red-50/50 border border-red-200/60 p-3 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-red-800 font-medium flex items-center gap-1">
-                        <Flame className="w-3.5 h-3.5 text-red-600" /> Phát thải CO₂ Nhà máy
-                      </span>
-                      <span className="font-mono font-bold text-slate-900 text-sm">
-                        {formatCO2(currentFactory.totals.co2Kg)}
-                      </span>
+                  <div className="bg-red-50/50 border border-red-200/60 p-3 rounded-lg flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-red-800 font-medium flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 text-red-600" /> Phát thải CO₂ Nhà máy
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 text-sm">
+                          {formatCO2(currentFactory.totals.co2Kg)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10.5px] text-red-900/80 font-mono mt-1">
+                        <span>Định mức: 3.500 kg</span>
+                        <span
+                          className={`font-bold ${
+                            currentFactory.totals.co2Kg > 3500
+                              ? 'text-red-600 animate-pulse'
+                              : 'text-red-800'
+                          }`}
+                        >
+                          {Math.round((currentFactory.totals.co2Kg / 3500) * 100)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-full bg-red-200/50 h-1.5 rounded-full overflow-hidden mt-2">
-                      <div
-                        className="h-full bg-red-500 rounded-full"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round((currentFactory.totals.co2Kg / 3500) * 100)
-                          )}%`,
-                        }}
+                    <div className="mt-2">
+                      <QuotaBar150
+                        current={currentFactory.totals.co2Kg}
+                        max={3500}
+                        baseColor="bg-orange-500"
+                        heightClass="h-2"
+                        showScaleTicks={true}
+                        notchLabel="100%"
                       />
                     </div>
                   </div>
 
-                  <div className="bg-sky-50/50 border border-sky-200/60 p-3 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sky-800 font-medium flex items-center gap-1">
-                        <Droplet className="w-3.5 h-3.5 text-sky-600" /> Nước xả/tái chế Nhà máy
-                      </span>
-                      <span className="font-mono font-bold text-slate-900 text-sm">
-                        {formatWater(currentFactory.totals.waterM3)}
-                      </span>
+                  <div className="bg-sky-50/50 border border-sky-200/60 p-3 rounded-lg flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sky-800 font-medium flex items-center gap-1">
+                          <Droplet className="w-3.5 h-3.5 text-sky-600" /> Nước xả/tái chế Nhà máy
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 text-sm">
+                          {formatWater(currentFactory.totals.waterM3)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10.5px] text-sky-900/80 font-mono mt-1">
+                        <span>Định mức: 400 m³</span>
+                        <span
+                          className={`font-bold ${
+                            currentFactory.totals.waterM3 > 400
+                              ? 'text-red-600 animate-pulse'
+                              : 'text-sky-800'
+                          }`}
+                        >
+                          {Math.round((currentFactory.totals.waterM3 / 400) * 100)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-full bg-sky-200/50 h-1.5 rounded-full overflow-hidden mt-2">
-                      <div
-                        className="h-full bg-sky-500 rounded-full"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round((currentFactory.totals.waterM3 / 400) * 100)
-                          )}%`,
-                        }}
+                    <div className="mt-2">
+                      <QuotaBar150
+                        current={currentFactory.totals.waterM3}
+                        max={400}
+                        baseColor="bg-sky-500"
+                        heightClass="h-2"
+                        showScaleTicks={true}
+                        notchLabel="100%"
                       />
                     </div>
                   </div>
@@ -695,21 +762,29 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               <span className="flex items-center gap-1 text-slate-600">
                                 <Zap className="w-3 h-3 text-amber-500" /> Điện:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatPower(workshop.totals.powerKWh)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatPower(workshop.totals.powerKWh)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 2.500 kWh</span>
+                                <span
+                                  className={`text-[10px] font-bold px-1 rounded ${
+                                    workshop.totals.powerKWh > 2500
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-500 bg-slate-100'
+                                  }`}
+                                >
+                                  {Math.round((workshop.totals.powerKWh / 2500) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-amber-500 rounded-full"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((workshop.totals.powerKWh / 2500) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={workshop.totals.powerKWh}
+                              max={2500}
+                              baseColor="bg-amber-500"
+                              heightClass="h-1.5"
+                              showScaleTicks={false}
+                            />
                           </div>
 
                           {/* CO2 */}
@@ -718,21 +793,29 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               <span className="flex items-center gap-1 text-slate-600">
                                 <Flame className="w-3 h-3 text-red-500" /> CO₂:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatCO2(workshop.totals.co2Kg)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatCO2(workshop.totals.co2Kg)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 1.800 kg</span>
+                                <span
+                                  className={`text-[10px] font-bold px-1 rounded ${
+                                    workshop.totals.co2Kg > 1800
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-500 bg-slate-100'
+                                  }`}
+                                >
+                                  {Math.round((workshop.totals.co2Kg / 1800) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-red-500 rounded-full"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((workshop.totals.co2Kg / 1800) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={workshop.totals.co2Kg}
+                              max={1800}
+                              baseColor="bg-orange-500"
+                              heightClass="h-1.5"
+                              showScaleTicks={false}
+                            />
                           </div>
 
                           {/* Water */}
@@ -741,21 +824,29 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               <span className="flex items-center gap-1 text-slate-600">
                                 <Droplet className="w-3 h-3 text-sky-500" /> Nước:
                               </span>
-                              <span className="font-mono font-bold text-slate-800">
-                                {formatWater(workshop.totals.waterM3)}
-                              </span>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className="font-bold text-slate-800">
+                                  {formatWater(workshop.totals.waterM3)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">/ 250 m³</span>
+                                <span
+                                  className={`text-[10px] font-bold px-1 rounded ${
+                                    workshop.totals.waterM3 > 250
+                                      ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : 'text-slate-500 bg-slate-100'
+                                  }`}
+                                >
+                                  {Math.round((workshop.totals.waterM3 / 250) * 100)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-sky-500 rounded-full"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.round((workshop.totals.waterM3 / 250) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
+                            <QuotaBar150
+                              current={workshop.totals.waterM3}
+                              max={250}
+                              baseColor="bg-sky-500"
+                              heightClass="h-1.5"
+                              showScaleTicks={false}
+                            />
                           </div>
                         </div>
 
@@ -937,30 +1028,31 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="flex items-center gap-1 text-slate-600">
                                   <Zap className="w-3 h-3 text-amber-500" /> Điện tiêu thụ:
                                 </span>
-                                <span className="font-mono font-bold text-slate-800">
-                                  {device.readings.power.value}{' '}
-                                  <span className="text-slate-400 font-normal">
-                                    / {device.readings.power.max} kWh
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-bold text-slate-800">
+                                    {device.readings.power.value}{' '}
+                                    <span className="text-slate-400 font-normal">
+                                      / {device.readings.power.max} kWh
+                                    </span>
                                   </span>
-                                </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-1 rounded ${
+                                      pRatio >= 1.0
+                                        ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : 'text-slate-500 bg-slate-100'
+                                    }`}
+                                  >
+                                    {Math.round(pRatio * 100)}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    pRatio >= 1.0
-                                      ? 'bg-red-500'
-                                      : pRatio >= 0.8
-                                      ? 'bg-amber-500'
-                                      : 'bg-amber-400'
-                                  }`}
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      Math.round(pRatio * 100)
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
+                              <QuotaBar150
+                                current={device.readings.power.value}
+                                max={device.readings.power.max}
+                                baseColor="bg-amber-500"
+                                heightClass="h-2"
+                                showScaleTicks={false}
+                              />
                             </div>
                           )}
 
@@ -971,30 +1063,31 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="flex items-center gap-1 text-slate-600">
                                   <Flame className="w-3 h-3 text-red-500" /> Phát thải CO₂:
                                 </span>
-                                <span className="font-mono font-bold text-slate-800">
-                                  {device.readings.co2.value}{' '}
-                                  <span className="text-slate-400 font-normal">
-                                    / {device.readings.co2.max} kg
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-bold text-slate-800">
+                                    {device.readings.co2.value}{' '}
+                                    <span className="text-slate-400 font-normal">
+                                      / {device.readings.co2.max} kg
+                                    </span>
                                   </span>
-                                </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-1 rounded ${
+                                      cRatio >= 1.0
+                                        ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : 'text-slate-500 bg-slate-100'
+                                    }`}
+                                  >
+                                    {Math.round(cRatio * 100)}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    cRatio >= 1.0
-                                      ? 'bg-red-600'
-                                      : cRatio >= 0.8
-                                      ? 'bg-amber-500'
-                                      : 'bg-red-400'
-                                  }`}
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      Math.round(cRatio * 100)
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
+                              <QuotaBar150
+                                current={device.readings.co2.value}
+                                max={device.readings.co2.max}
+                                baseColor="bg-orange-500"
+                                heightClass="h-2"
+                                showScaleTicks={false}
+                              />
                             </div>
                           )}
 
@@ -1005,30 +1098,31 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="flex items-center gap-1 text-slate-600">
                                   <Droplet className="w-3 h-3 text-sky-500" /> Nước xả/tái chế:
                                 </span>
-                                <span className="font-mono font-bold text-slate-800">
-                                  {device.readings.water.value}{' '}
-                                  <span className="text-slate-400 font-normal">
-                                    / {device.readings.water.max} m³
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-bold text-slate-800">
+                                    {device.readings.water.value}{' '}
+                                    <span className="text-slate-400 font-normal">
+                                      / {device.readings.water.max} m³
+                                    </span>
                                   </span>
-                                </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-1 rounded ${
+                                      wRatio >= 1.0
+                                        ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : 'text-slate-500 bg-slate-100'
+                                    }`}
+                                  >
+                                    {Math.round(wRatio * 100)}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    wRatio >= 1.0
-                                      ? 'bg-red-500'
-                                      : wRatio >= 0.8
-                                      ? 'bg-amber-500'
-                                      : 'bg-sky-500'
-                                  }`}
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      Math.round(wRatio * 100)
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
+                              <QuotaBar150
+                                current={device.readings.water.value}
+                                max={device.readings.water.max}
+                                baseColor="bg-sky-500"
+                                heightClass="h-2"
+                                showScaleTicks={false}
+                              />
                             </div>
                           )}
                         </div>
@@ -1161,184 +1255,172 @@ export const ESGRealtimeMonitor: React.FC = () => {
               {/* Real-time Telemetry Big Gauges */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Power Dial */}
-                {currentDevice.readings.power && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-                        <Zap className="w-4 h-4 text-amber-500" /> Công suất Phụ tải Điện
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-400">
-                        Max: {currentDevice.readings.power.max} kWh
-                      </span>
-                    </div>
-                    <div className="my-4 text-center">
-                      <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
-                        {currentDevice.readings.power.value}{' '}
-                        <span className="text-sm font-normal text-slate-500">kWh</span>
+                {currentDevice.readings.power && (() => {
+                  const pVal = currentDevice.readings.power.value;
+                  const pMax = currentDevice.readings.power.max;
+                  const pct = pMax > 0 ? Math.round((pVal / pMax) * 100) : 0;
+                  const isOver = pct > 100;
+
+                  return (
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
+                          <Zap className="w-4 h-4 text-amber-500" /> Công suất Phụ tải Điện
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          Định mức (100%): {pMax} kWh
+                        </span>
                       </div>
-                      <span className="text-xs text-slate-500 mt-1 block">
-                        Đang hoạt động ở mức{' '}
-                        <strong>
-                          {Math.round(
-                            (currentDevice.readings.power.value /
-                              currentDevice.readings.power.max) *
-                              100
+                      <div className="my-4 text-center">
+                        <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                          {pVal}{' '}
+                          <span className="text-sm font-normal text-slate-500">kWh</span>
+                        </div>
+                        <span className="text-xs text-slate-500 mt-1 block">
+                          Đang hoạt động ở mức{' '}
+                          <strong className={isOver ? 'text-red-600 font-extrabold' : 'text-slate-800'}>
+                            {pct}%
+                          </strong>{' '}
+                          công suất danh định{' '}
+                          {isOver && (
+                            <span className="text-red-600 font-bold animate-pulse">
+                              (VƯỢT ĐỊNH MỨC)
+                            </span>
                           )}
-                          %
-                        </strong>{' '}
-                        công suất danh định
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          currentDevice.readings.power.value >=
-                          currentDevice.readings.power.max
-                            ? 'bg-red-500'
-                            : currentDevice.readings.power.value >=
-                              currentDevice.readings.power.max * 0.8
-                            ? 'bg-amber-500'
-                            : 'bg-amber-400'
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round(
-                              (currentDevice.readings.power.value /
-                                currentDevice.readings.power.max) *
-                                100
-                            )
-                          )}%`,
-                        }}
+                        </span>
+                      </div>
+                      <QuotaBar150
+                        current={pVal}
+                        max={pMax}
+                        baseColor="bg-amber-500"
+                        heightClass="h-3"
+                        showScaleTicks={true}
+                        notchLabel="100% Định mức"
                       />
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 font-mono">
+                        <span>0 kWh</span>
+                        <span className="text-amber-600 font-medium">
+                          Cảnh báo (80%): {Math.round(pMax * 0.8)} kWh
+                        </span>
+                        <span className="text-red-500 font-medium">
+                          Max (150%): {Math.round(pMax * 1.5)} kWh
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
-                      <span>0</span>
-                      <span>Ngưỡng cảnh báo: {Math.round(currentDevice.readings.power.max * 0.8)} kWh</span>
-                      <span>{currentDevice.readings.power.max}</span>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* CO2 Dial */}
-                {currentDevice.readings.co2 && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-                        <Flame className="w-4 h-4 text-red-500" /> Phát thải Khí nhà kính CO₂
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-400">
-                        Max: {currentDevice.readings.co2.max} kg
-                      </span>
-                    </div>
-                    <div className="my-4 text-center">
-                      <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
-                        {currentDevice.readings.co2.value}{' '}
-                        <span className="text-sm font-normal text-slate-500">kg CO₂e</span>
+                {currentDevice.readings.co2 && (() => {
+                  const cVal = currentDevice.readings.co2.value;
+                  const cMax = currentDevice.readings.co2.max;
+                  const pct = cMax > 0 ? Math.round((cVal / cMax) * 100) : 0;
+                  const isOver = pct > 100;
+
+                  return (
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
+                          <Flame className="w-4 h-4 text-red-500" /> Phát thải Khí nhà kính CO₂
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          Định mức (100%): {cMax} kg
+                        </span>
                       </div>
-                      <span className="text-xs text-slate-500 mt-1 block">
-                        Đang hoạt động ở mức{' '}
-                        <strong>
-                          {Math.round(
-                            (currentDevice.readings.co2.value /
-                              currentDevice.readings.co2.max) *
-                              100
+                      <div className="my-4 text-center">
+                        <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                          {cVal}{' '}
+                          <span className="text-sm font-normal text-slate-500">kg CO₂e</span>
+                        </div>
+                        <span className="text-xs text-slate-500 mt-1 block">
+                          Đang hoạt động ở mức{' '}
+                          <strong className={isOver ? 'text-red-600 font-extrabold' : 'text-slate-800'}>
+                            {pct}%
+                          </strong>{' '}
+                          hạn ngạch{' '}
+                          {isOver && (
+                            <span className="text-red-600 font-bold animate-pulse">
+                              (VƯỢT ĐỊNH MỨC)
+                            </span>
                           )}
-                          %
-                        </strong>{' '}
-                        hạn ngạch
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          currentDevice.readings.co2.value >=
-                          currentDevice.readings.co2.max
-                            ? 'bg-red-600'
-                            : currentDevice.readings.co2.value >=
-                              currentDevice.readings.co2.max * 0.8
-                            ? 'bg-amber-500'
-                            : 'bg-red-400'
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round(
-                              (currentDevice.readings.co2.value /
-                                currentDevice.readings.co2.max) *
-                                100
-                            )
-                          )}%`,
-                        }}
+                        </span>
+                      </div>
+                      <QuotaBar150
+                        current={cVal}
+                        max={cMax}
+                        baseColor="bg-orange-500"
+                        heightClass="h-3"
+                        showScaleTicks={true}
+                        notchLabel="100% Định mức"
                       />
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 font-mono">
+                        <span>0 kg</span>
+                        <span className="text-amber-600 font-medium">
+                          Cảnh báo (80%): {Math.round(cMax * 0.8)} kg
+                        </span>
+                        <span className="text-red-500 font-medium">
+                          Max (150%): {Math.round(cMax * 1.5)} kg
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
-                      <span>0</span>
-                      <span>Ngưỡng cảnh báo: {Math.round(currentDevice.readings.co2.max * 0.8)} kg</span>
-                      <span>{currentDevice.readings.co2.max}</span>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Water Dial */}
-                {currentDevice.readings.water && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
-                        <Droplet className="w-4 h-4 text-sky-500" /> Lưu lượng Nước xả/tuần hoàn
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-400">
-                        Max: {currentDevice.readings.water.max} m³
-                      </span>
-                    </div>
-                    <div className="my-4 text-center">
-                      <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
-                        {currentDevice.readings.water.value}{' '}
-                        <span className="text-sm font-normal text-slate-500">m³</span>
+                {currentDevice.readings.water && (() => {
+                  const wVal = currentDevice.readings.water.value;
+                  const wMax = currentDevice.readings.water.max;
+                  const pct = wMax > 0 ? Math.round((wVal / wMax) * 100) : 0;
+                  const isOver = pct > 100;
+
+                  return (
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
+                          <Droplet className="w-4 h-4 text-sky-500" /> Lưu lượng Nước xả/tuần hoàn
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          Định mức (100%): {wMax} m³
+                        </span>
                       </div>
-                      <span className="text-xs text-slate-500 mt-1 block">
-                        Đang hoạt động ở mức{' '}
-                        <strong>
-                          {Math.round(
-                            (currentDevice.readings.water.value /
-                              currentDevice.readings.water.max) *
-                              100
+                      <div className="my-4 text-center">
+                        <div className="text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                          {wVal}{' '}
+                          <span className="text-sm font-normal text-slate-500">m³</span>
+                        </div>
+                        <span className="text-xs text-slate-500 mt-1 block">
+                          Đang hoạt động ở mức{' '}
+                          <strong className={isOver ? 'text-red-600 font-extrabold' : 'text-slate-800'}>
+                            {pct}%
+                          </strong>{' '}
+                          công suất đường ống{' '}
+                          {isOver && (
+                            <span className="text-red-600 font-bold animate-pulse">
+                              (VƯỢT ĐỊNH MỨC)
+                            </span>
                           )}
-                          %
-                        </strong>{' '}
-                        công suất đường ống
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          currentDevice.readings.water.value >=
-                          currentDevice.readings.water.max
-                            ? 'bg-red-500'
-                            : currentDevice.readings.water.value >=
-                              currentDevice.readings.water.max * 0.8
-                            ? 'bg-amber-500'
-                            : 'bg-sky-500'
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round(
-                              (currentDevice.readings.water.value /
-                                currentDevice.readings.water.max) *
-                                100
-                            )
-                          )}%`,
-                        }}
+                        </span>
+                      </div>
+                      <QuotaBar150
+                        current={wVal}
+                        max={wMax}
+                        baseColor="bg-sky-500"
+                        heightClass="h-3"
+                        showScaleTicks={true}
+                        notchLabel="100% Định mức"
                       />
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 font-mono">
+                        <span>0 m³</span>
+                        <span className="text-amber-600 font-medium">
+                          Cảnh báo (80%): {Math.round(wMax * 0.8)} m³
+                        </span>
+                        <span className="text-red-500 font-medium">
+                          Max (150%): {Math.round(wMax * 1.5)} m³
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
-                      <span>0</span>
-                      <span>Ngưỡng cảnh báo: {Math.round(currentDevice.readings.water.max * 0.8)} m³</span>
-                      <span>{currentDevice.readings.water.max}</span>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Live Waveform Trend & SCADA Diagnostics */}

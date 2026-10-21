@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
-import { BarChart2, Zap, Flame, Droplet, ArrowRight } from 'lucide-react';
+import { BarChart2, Zap, Flame, Droplet } from 'lucide-react';
 import { MetricType } from '@/types/esg';
+import { QuotaBar150 } from './QuotaBar150';
 
 export const ESGComparisonChart: React.FC = () => {
   const { role, factories, selectedFactoryId, selectedWorkshopId } = useESGSimulation();
@@ -12,93 +13,121 @@ export const ESGComparisonChart: React.FC = () => {
   // Determine comparison items based on role
   let comparisonTitle = '';
   let comparisonSubtitle = '';
-  let items: { name: string; value: number; max: number; subText: string; status: 'normal' | 'warning' | 'danger' }[] = [];
+  let items: {
+    name: string;
+    value: number;
+    max: number;
+    subText: string;
+    status: 'normal' | 'warning' | 'danger';
+  }[] = [];
 
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
   const currentWorkshop = currentFactory.workshops.find((w) => w.id === selectedWorkshopId) || currentFactory.workshops[0];
 
   if (role === 'bod') {
-    comparisonTitle = 'So sánh tỷ trọng giữa 3 Nhà máy sản xuất';
-    comparisonSubtitle = 'Quyền Ban Giám đốc: Đánh giá phân bổ tiêu thụ toàn hệ thống Vinamilk';
-    const totalAllPower = factories.reduce((sum, f) => sum + f.totals.powerKWh, 0);
-    const totalAllCo2 = factories.reduce((sum, f) => sum + f.totals.co2Kg, 0);
-    const totalAllWater = factories.reduce((sum, f) => sum + f.totals.waterM3, 0);
+    comparisonTitle = 'So sánh định mức tiêu thụ giữa 3 Nhà máy sản xuất';
+    comparisonSubtitle = 'Quyền Ban Giám đốc: Giám sát tỷ lệ % định mức và cảnh báo vượt hạn ngạch 3 nhà máy';
 
     items = factories.map((f) => {
       let val = f.totals.powerKWh;
-      let max = totalAllPower;
+      let max = 5000;
+      let unit = 'kWh';
       if (metric === 'co2') {
         val = f.totals.co2Kg;
-        max = totalAllCo2;
+        max = 3500;
+        unit = 'kg';
       } else if (metric === 'water') {
         val = f.totals.waterM3;
-        max = totalAllWater;
+        max = 400;
+        unit = 'm³';
       }
+
+      const ratio = max > 0 ? val / max : 0;
+      const status: 'normal' | 'warning' | 'danger' =
+        ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
         name: f.name,
         value: val,
         max,
-        subText: `${f.workshops.length} phân xưởng • GĐ: ${f.director}`,
-        status: f.status,
+        subText: `${f.workshops.length} phân xưởng • Định mức chuẩn: ${max.toLocaleString('vi-VN')} ${unit} • GĐ: ${f.director}`,
+        status,
       };
     });
   } else if (role === 'factory_director') {
-    comparisonTitle = `So sánh giữa các Phân xưởng (${currentFactory.name})`;
-    comparisonSubtitle = 'Quyền Quản đốc: Đánh giá hiệu suất năng lượng từng dây chuyền phân xưởng';
-    const factoryPower = currentFactory.workshops.reduce((sum, w) => sum + w.totals.powerKWh, 0);
-    const factoryCo2 = currentFactory.workshops.reduce((sum, w) => sum + w.totals.co2Kg, 0);
-    const factoryWater = currentFactory.workshops.reduce((sum, w) => sum + w.totals.waterM3, 0);
+    comparisonTitle = `So sánh định mức giữa các Phân xưởng (${currentFactory.name})`;
+    comparisonSubtitle = 'Quyền Quản đốc: Giám sát công suất & hạn mức tiêu thụ từng phân xưởng';
 
     items = currentFactory.workshops.map((w) => {
       let val = w.totals.powerKWh;
-      let max = factoryPower;
+      let max = 2500;
+      let unit = 'kWh';
       if (metric === 'co2') {
         val = w.totals.co2Kg;
-        max = factoryCo2;
+        max = 1800;
+        unit = 'kg';
       } else if (metric === 'water') {
         val = w.totals.waterM3;
-        max = factoryWater;
+        max = 250;
+        unit = 'm³';
       }
+
+      const ratio = max > 0 ? val / max : 0;
+      const status: 'normal' | 'warning' | 'danger' =
+        ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
         name: w.name,
         value: val,
         max,
-        subText: `${w.deviceCount} thiết bị • Quản lý: ${w.manager}`,
-        status: w.status,
+        subText: `${w.deviceCount} thiết bị • Định mức chuẩn: ${max.toLocaleString('vi-VN')} ${unit} • Quản lý: ${w.manager}`,
+        status,
       };
     });
   } else {
     // workshop_lead
-    comparisonTitle = `So sánh tiêu thụ từng Thiết bị (${currentWorkshop.name})`;
-    comparisonSubtitle = 'Quyền Trưởng bộ phận: Giám sát tải trọng & định mức từng máy cụ thể';
+    comparisonTitle = `So sánh định mức từng Thiết bị (${currentWorkshop.name})`;
+    comparisonSubtitle = 'Quyền Trưởng bộ phận: Giám sát tải trọng & định mức an toàn từng thiết bị';
 
     items = currentWorkshop.devices.map((d) => {
       let val = 0;
       let max = 100;
+      let unit = 'kWh';
       if (metric === 'power' && d.readings.power) {
         val = d.readings.power.value;
         max = d.readings.power.max;
+        unit = 'kWh';
       } else if (metric === 'co2' && d.readings.co2) {
         val = d.readings.co2.value;
         max = d.readings.co2.max;
+        unit = 'kg';
       } else if (metric === 'water' && d.readings.water) {
         val = d.readings.water.value;
         max = d.readings.water.max;
+        unit = 'm³';
       }
+
+      const ratio = max > 0 ? val / max : 0;
+      const status: 'normal' | 'warning' | 'danger' =
+        ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
         name: d.name,
         value: val,
         max,
-        subText: `Mã: ${d.code} • ${d.specification.slice(0, 36)}...`,
-        status: d.status,
+        subText: `Mã: ${d.code} • Định mức: ${max.toLocaleString('vi-VN')} ${unit} • ${d.specification.slice(0, 32)}...`,
+        status,
       };
     });
   }
 
   const unitLabel = metric === 'power' ? 'kWh' : metric === 'co2' ? 'kg' : 'm³';
+  const baseColor =
+    metric === 'power'
+      ? 'bg-amber-500'
+      : metric === 'co2'
+      ? 'bg-orange-500'
+      : 'bg-sky-500';
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col justify-between">
@@ -117,7 +146,9 @@ export const ESGComparisonChart: React.FC = () => {
           <button
             onClick={() => setMetric('power')}
             className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
-              metric === 'power' ? 'bg-amber-500 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              metric === 'power'
+                ? 'bg-amber-500 text-white font-semibold shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Zap className="w-3 h-3" /> Điện
@@ -125,7 +156,9 @@ export const ESGComparisonChart: React.FC = () => {
           <button
             onClick={() => setMetric('co2')}
             className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
-              metric === 'co2' ? 'bg-red-500 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              metric === 'co2'
+                ? 'bg-red-500 text-white font-semibold shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Flame className="w-3 h-3" /> CO₂
@@ -133,7 +166,9 @@ export const ESGComparisonChart: React.FC = () => {
           <button
             onClick={() => setMetric('water')}
             className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
-              metric === 'water' ? 'bg-sky-500 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              metric === 'water'
+                ? 'bg-sky-500 text-white font-semibold shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Droplet className="w-3 h-3" /> Nước
@@ -142,9 +177,11 @@ export const ESGComparisonChart: React.FC = () => {
       </div>
 
       {/* Bar Comparison List */}
-      <div className="space-y-3.5 my-3 flex-1 overflow-y-auto max-h-[260px] pr-1">
+      <div className="space-y-3.5 my-3 flex-1 overflow-y-auto max-h-[280px] pr-1">
         {items.map((item, idx) => {
-          const percentage = item.max > 0 ? Math.min(100, Math.round((item.value / item.max) * 100)) : 0;
+          const percentage = item.max > 0 ? Math.round((item.value / item.max) * 100) : 0;
+          const isOver = percentage > 100;
+
           return (
             <div key={idx} className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -158,46 +195,54 @@ export const ESGComparisonChart: React.FC = () => {
                         : 'bg-emerald-500'
                     }`}
                   />
-                  <span className="font-semibold text-slate-800 truncate max-w-[260px]">
+                  <span className="font-semibold text-slate-800 truncate max-w-[240px]">
                     {item.name}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-800">
-                    {item.value.toLocaleString('vi-VN')} {unitLabel}
+                  <span className="font-mono text-slate-700">
+                    <strong className="text-slate-900">{item.value.toLocaleString('vi-VN')}</strong>
+                    <span className="text-slate-400 font-normal"> / {item.max.toLocaleString('vi-VN')} {unitLabel}</span>
                   </span>
-                  <span className="text-[11px] font-medium text-slate-500 font-mono w-10 text-right">
+                  <span
+                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                      isOver
+                        ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                        : percentage >= 80
+                        ? 'text-amber-800 bg-amber-100 border border-amber-200'
+                        : 'text-emerald-800 bg-emerald-50 border border-emerald-200'
+                    }`}
+                  >
                     {percentage}%
                   </span>
                 </div>
               </div>
 
-              {/* Progress Bar */}
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    item.status === 'danger'
-                      ? 'bg-red-500'
-                      : metric === 'power'
-                      ? 'bg-amber-500'
-                      : metric === 'co2'
-                      ? 'bg-red-500'
-                      : 'bg-sky-500'
-                  }`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
+              {/* 150% Scale Quota Bar */}
+              <QuotaBar150
+                current={item.value}
+                max={item.max}
+                baseColor={baseColor}
+                heightClass="h-2"
+                showScaleTicks={false}
+              />
 
-              <div className="text-[10.5px] text-slate-400 pl-4">{item.subText}</div>
+              <div className="text-[10.5px] text-slate-400 pl-3">{item.subText}</div>
             </div>
           );
         })}
       </div>
 
-      {/* Note based on role depth */}
-      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-        <span>Phân cấp dữ liệu theo thẩm quyền quản lý</span>
-        <span className="text-teal-700 font-medium">Tự động đồng bộ với quyền hiện hành</span>
+      {/* Footer scale indicator */}
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+        <span className="flex items-center gap-2">
+          <span>Thang đo 0% ──[100% Định mức]──&gt; 150%</span>
+          <span className="inline-flex items-center gap-1 text-[10.5px] text-red-600 font-medium">
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+            Đỏ: Vượt định mức
+          </span>
+        </span>
+        <span className="text-teal-700 font-medium hidden sm:inline">Tự động đồng bộ với thẩm quyền vai trò</span>
       </div>
     </div>
   );
