@@ -25,11 +25,12 @@ import {
   Building,
   Sparkles,
   FileCheck2,
+  Activity,
 } from 'lucide-react';
 import { MetricType, ESGAlert, AlertResolutionPayload } from '@/types/esg';
 
 export const ESGAlertsFullView: React.FC = () => {
-  const { alerts, roleFilteredAlerts, currentRoleConfig, resolveAlert, triggerAnomaly, role } = useESGSimulation();
+  const { alerts, roleFilteredAlerts, currentRoleConfig, resolveAlert, triggerAnomaly, role, navigateTo } = useESGSimulation();
   const [filterType, setFilterType] = useState<'all' | MetricType>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'new' | 'resolved'>('all');
   const [filterScope, setFilterScope] = useState<'role' | 'all'>('role');
@@ -481,6 +482,39 @@ export const ESGAlertsFullView: React.FC = () => {
                       <div className="text-[11px] text-slate-400">
                         {alt.workshopName} {alt.deviceName ? `• ${alt.deviceName}` : ''}
                       </div>
+                      <button
+                        onClick={() => {
+                          let targetFactId = alt.factoryId || 'nm-vnm-bd';
+                          if (!alt.factoryId) {
+                            if (alt.factoryName.includes('Mega')) targetFactId = 'nm-mega-dairy';
+                            else if (alt.factoryName.includes('Thống Nhất')) targetFactId = 'nm-thong-nhat';
+                          }
+                          let targetWsId = alt.workshopId || 'px-che-bien';
+                          if (!alt.workshopId) {
+                            if (alt.workshopName.includes('Đóng gói')) targetWsId = 'px-dong-goi';
+                            else if (alt.workshopName.includes('Năng lượng')) targetWsId = 'px-nang-luong';
+                            else if (alt.workshopName.includes('Sữa tươi')) targetWsId = 'px-sua-tuoi';
+                            else if (alt.workshopName.includes('Kho lạnh')) targetWsId = 'px-kho-lanh-mega';
+                          }
+                          let targetDevId = alt.deviceId || null;
+                          if (!alt.deviceId && alt.deviceName) {
+                            if (alt.deviceName.includes('UHT')) targetDevId = 'tb-uht-01';
+                            else if (alt.deviceName.includes('Lò hơi')) targetDevId = 'tb-lo-hoi';
+                            else if (alt.deviceName.includes('Chiller')) targetDevId = 'tb-chiller-01';
+                          }
+                          navigateTo('esg-realtime', {
+                            factoryId: targetFactId,
+                            workshopId: targetWsId,
+                            deviceId: targetDevId,
+                            viewLevel: targetDevId ? 'device' : 'workshop',
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-1.5 py-0.5 rounded mt-1 transition-colors cursor-pointer"
+                        title="Chuyển đến màn hình giám sát thời gian thực SCADA của vị trí này"
+                      >
+                        <Activity className="w-3 h-3 text-teal-600" />
+                        <span>Xem SCADA ➔</span>
+                      </button>
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-red-700">
                       {alt.value} <span className="text-slate-400 font-normal">/ {alt.threshold}</span>

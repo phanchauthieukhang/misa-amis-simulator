@@ -27,47 +27,74 @@ export const ESGRankingTable: React.FC = () => {
     rankingTitle = 'Xếp hạng tiêu thụ năng lượng theo Nhà máy';
     rankingList = [...factories]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
-      .map((f) => ({
-        id: f.id,
-        targetType: 'factory' as const,
-        name: f.name,
-        code: f.code,
-        power: f.totals.powerKWh,
-        co2: f.totals.co2Kg,
-        water: f.totals.waterM3,
-        status: f.status,
-        sub: f.location,
-      }));
+      .map((f) => {
+        const pRatio = f.totals.powerKWh / 5000;
+        const cRatio = f.totals.co2Kg / 3500;
+        const wRatio = f.totals.waterM3 / 400;
+        const maxRatio = Math.max(pRatio, cRatio, wRatio);
+        const itemStatus: 'normal' | 'warning' | 'danger' =
+          maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
+
+        return {
+          id: f.id,
+          targetType: 'factory' as const,
+          name: f.name,
+          code: f.code,
+          power: f.totals.powerKWh,
+          co2: f.totals.co2Kg,
+          water: f.totals.waterM3,
+          status: itemStatus,
+          sub: f.location,
+        };
+      });
   } else if (role === 'factory_director') {
     rankingTitle = `Xếp hạng tiêu thụ theo Phân xưởng (${currentFactory.name})`;
     rankingList = [...currentFactory.workshops]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
-      .map((w) => ({
-        id: w.id,
-        targetType: 'workshop' as const,
-        name: w.name,
-        code: w.code,
-        power: w.totals.powerKWh,
-        co2: w.totals.co2Kg,
-        water: w.totals.waterM3,
-        status: w.status,
-        sub: `Quản lý: ${w.manager} • ${w.deviceCount} thiết bị`,
-      }));
+      .map((w) => {
+        const pRatio = w.totals.powerKWh / 2500;
+        const cRatio = w.totals.co2Kg / 1800;
+        const wRatio = w.totals.waterM3 / 250;
+        const maxRatio = Math.max(pRatio, cRatio, wRatio);
+        const itemStatus: 'normal' | 'warning' | 'danger' =
+          maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
+
+        return {
+          id: w.id,
+          targetType: 'workshop' as const,
+          name: w.name,
+          code: w.code,
+          power: w.totals.powerKWh,
+          co2: w.totals.co2Kg,
+          water: w.totals.waterM3,
+          status: itemStatus,
+          sub: `Quản lý: ${w.manager} • ${w.deviceCount} thiết bị`,
+        };
+      });
   } else {
     rankingTitle = `Xếp hạng tiêu thụ theo Thiết bị (${currentWorkshop.name})`;
     rankingList = [...currentWorkshop.devices]
       .sort((a, b) => (b.readings.power?.value || 0) - (a.readings.power?.value || 0))
-      .map((d) => ({
-        id: d.id,
-        targetType: 'device' as const,
-        name: d.name,
-        code: d.code,
-        power: d.readings.power?.value || 0,
-        co2: d.readings.co2?.value || 0,
-        water: d.readings.water?.value || 0,
-        status: d.status,
-        sub: d.specification,
-      }));
+      .map((d) => {
+        const pRatio = d.readings.power ? d.readings.power.value / d.readings.power.max : 0;
+        const cRatio = d.readings.co2 ? d.readings.co2.value / d.readings.co2.max : 0;
+        const wRatio = d.readings.water ? d.readings.water.value / d.readings.water.max : 0;
+        const maxRatio = Math.max(pRatio, cRatio, wRatio);
+        const itemStatus: 'normal' | 'warning' | 'danger' =
+          maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
+
+        return {
+          id: d.id,
+          targetType: 'device' as const,
+          name: d.name,
+          code: d.code,
+          power: d.readings.power?.value || 0,
+          co2: d.readings.co2?.value || 0,
+          water: d.readings.water?.value || 0,
+          status: itemStatus,
+          sub: d.specification,
+        };
+      });
   }
 
   const handleDrilldown = (item: (typeof rankingList)[0]) => {

@@ -23,7 +23,7 @@ import {
 import { UserRole } from '@/types/esg';
 
 export const SimulationControlPanel: React.FC = () => {
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const {
     role,
     setRole,
@@ -47,12 +47,36 @@ export const SimulationControlPanel: React.FC = () => {
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
   const [anomalyTarget, setAnomalyTarget] = useState<'closed_period' | 'current_period'>('closed_period');
 
+  // When collapsed, render as a compact, non-intrusive floating pill button at bottom-right
+  if (!isExpanded) {
+    return (
+      <div className="fixed bottom-4 right-6 z-50">
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="bg-slate-900/95 hover:bg-slate-800 text-white px-4 py-2.5 rounded-full shadow-2xl border border-slate-700/80 flex items-center gap-2.5 text-xs font-semibold backdrop-blur-md transition-all hover:scale-105 cursor-pointer ring-2 ring-teal-500/20 group"
+          title="Nhấp để mở Bảng điều khiển mô phỏng & kiểm thử phân quyền"
+        >
+          <div className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center">
+            <Sliders className="w-3 h-3 group-hover:rotate-45 transition-transform" />
+          </div>
+          <span>Bảng Điều khiển Mô phỏng</span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isLiveStreaming ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+            }`}
+          />
+          <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-colors" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2 pt-0 pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2 pt-0 pointer-events-none animate-in slide-in-from-bottom duration-200">
       <div className="max-w-6xl mx-auto bg-slate-900/95 backdrop-blur-md text-white rounded-t-xl shadow-2xl border border-slate-700/80 pointer-events-auto transition-all duration-300 overflow-hidden">
         {/* Panel Header Toggle Bar */}
         <div
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => setIsExpanded(false)}
           className="px-4 py-2.5 bg-slate-800/90 flex items-center justify-between cursor-pointer hover:bg-slate-750 transition-colors border-b border-slate-700/60"
         >
           <div className="flex items-center gap-3">
@@ -75,19 +99,14 @@ export const SimulationControlPanel: React.FC = () => {
 
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span className="hidden sm:inline text-[11px] text-slate-300">
-              {isExpanded ? 'Thu gọn điều khiển' : 'Mở rộng điều khiển'}
+              Thu gọn bảng điều khiển
             </span>
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-slate-300" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-slate-300" />
-            )}
+            <ChevronDown className="w-4 h-4 text-slate-300" />
           </div>
         </div>
 
         {/* Collapsible Content */}
-        {isExpanded && (
-          <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs">
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs">
             {/* Column 1: Role Switcher (5 cols) */}
             <div className="lg:col-span-5 space-y-2 border-b lg:border-b-0 lg:border-r border-slate-700/70 pb-3 lg:pb-0 lg:pr-4">
               <div className="flex items-center justify-between">
@@ -408,8 +427,7 @@ export const SimulationControlPanel: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
-    </div>
   );
 };

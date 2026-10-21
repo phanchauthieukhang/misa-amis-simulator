@@ -106,6 +106,9 @@ export interface ESGAlert {
   factoryName: string;
   workshopName: string;
   deviceName?: string;
+  factoryId?: string;
+  workshopId?: string;
+  deviceId?: string;
   metricType: MetricType;
   level: 'warning' | 'danger';
   message: string;

@@ -53,6 +53,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
     setSelectedDeviceId,
     isLiveStreaming,
     unitPreferences,
+    navigateTo,
   } = useESGSimulation();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -1427,11 +1428,15 @@ export const ESGRealtimeMonitor: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => handleRequestInspection(device.name)}
-                          className="px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-teal-700 bg-slate-100 hover:bg-slate-200 rounded flex items-center gap-1 transition-colors"
+                          onClick={() => {
+                            handleRequestInspection(device.name);
+                            navigateTo('esg-alerts');
+                          }}
+                          className="px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-teal-700 bg-slate-100 hover:bg-slate-200 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Khởi tạo phiếu kiểm tra và chuyển đến phân hệ Quản trị Cảnh báo"
                         >
                           <Wrench className="w-3 h-3" />
-                          <span>Yêu cầu kiểm tra</span>
+                          <span>Lập CAPA ➔</span>
                         </button>
                       </div>
                     </div>
@@ -1494,11 +1499,15 @@ export const ESGRealtimeMonitor: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleRequestInspection(currentDevice.name)}
-                      className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors"
+                      onClick={() => {
+                        handleRequestInspection(currentDevice.name);
+                        navigateTo('esg-alerts');
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                      title="Khởi tạo phiếu kiểm tra và chuyển đến phân hệ Quản trị Cảnh báo & Biên bản CAPA"
                     >
                       <Wrench className="w-3.5 h-3.5" />
-                      <span>Lập phiếu kiểm tra HSE</span>
+                      <span>Lập phiếu kiểm tra HSE (CAPA) ➔</span>
                     </button>
                     <button
                       onClick={() =>

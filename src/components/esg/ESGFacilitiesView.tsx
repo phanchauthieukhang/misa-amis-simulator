@@ -36,6 +36,7 @@ export const ESGFacilitiesView: React.FC = () => {
     selectedWorkshopId,
     setSelectedWorkshopId,
     currentRoleConfig,
+    navigateTo,
   } = useESGSimulation();
 
   // Active view tab (tailored by role)
@@ -707,23 +708,51 @@ export const ESGFacilitiesView: React.FC = () => {
                       <span className="text-[10px] text-slate-400">Định kỳ 6 tháng/lần</span>
                     </td>
 
-                    {/* Technical Status */}
+                    {/* Technical Status with Live Quota / Incident Evaluation */}
                     <td className="py-3 px-3 text-center">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Đang vận hành
-                      </span>
+                      {dev.status === 'danger' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+                          ⚠️ Vượt định mức
+                        </span>
+                      ) : dev.status === 'warning' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          ⚠️ Cận định mức
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Đang vận hành
+                        </span>
+                      )}
                     </td>
 
                     {/* Action */}
                     <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => setSelectedDeviceProfile(dev)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-teal-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors inline-flex items-center gap-1"
-                      >
-                        <FileText className="w-3 h-3" />
-                        <span>Hồ sơ kỹ thuật</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => {
+                            navigateTo('esg-realtime', {
+                              factoryId: dev.factoryId,
+                              workshopId: dev.workshopId,
+                              deviceId: dev.id,
+                              viewLevel: 'device',
+                            });
+                          }}
+                          className="px-2 py-1 text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Soi trực tiếp trên hệ thống SCADA IoT"
+                        >
+                          <Zap className="w-3 h-3 text-teal-600" />
+                          <span>SCADA ➔</span>
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedDeviceProfile(dev)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-teal-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>Hồ sơ</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

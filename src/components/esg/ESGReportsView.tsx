@@ -58,44 +58,27 @@ export const ESGReportsView: React.FC = () => {
       ? 'BM-ESG-FAC-02 (QCVN 40 & ISO 50001)'
       : 'BM-ESG-WS-03 (Quy chuẩn kỹ thuật ca)';
 
-  // Calculate multiplier for selected period
-  const periodMultiplierMap: Record<string, number> = {
-    today: 1,
-    week: 7,
-    month: 30,
-    quarter: 90,
-    year: 365,
-    '3years': 365 * 3,
-    '5years': 365 * 5,
-    '10years': 365 * 10,
-  };
-  const multiplier = periodMultiplierMap[timePeriod] || 30;
+  // Exact period metrics from Scoped Audit Totals
+  const powerDisplayVal = scopedTotals.powerKWh.toLocaleString('vi-VN');
+  const powerDisplayUnit = 'kWh';
+  const powerQuotaVal = scopedTotals.effectivePowerLimit.toLocaleString('vi-VN');
+  const powerPct = scopedTotals.effectivePowerLimit > 0
+    ? Math.round((scopedTotals.powerKWh / scopedTotals.effectivePowerLimit) * 100)
+    : 0;
 
-  const isMultiYear = timePeriod === '3years' || timePeriod === '5years' || timePeriod === '10years';
-  const isYear = timePeriod === 'year';
+  const co2DisplayVal = scopedTotals.co2Kg.toLocaleString('vi-VN');
+  const co2DisplayUnit = 'kg CO₂e';
+  const co2QuotaVal = scopedTotals.effectiveCo2Limit.toLocaleString('vi-VN');
+  const co2Pct = scopedTotals.effectiveCo2Limit > 0
+    ? Math.round((scopedTotals.co2Kg / scopedTotals.effectiveCo2Limit) * 100)
+    : 0;
 
-  const powerDisplayVal = isMultiYear
-    ? Math.round((scopedTotals.powerKWh * multiplier) / 1000).toLocaleString('vi-VN')
-    : Math.round(scopedTotals.powerKWh * multiplier).toLocaleString('vi-VN');
-  const powerDisplayUnit = isMultiYear ? 'MWh' : 'kWh';
-
-  const powerQuotaVal = isMultiYear
-    ? Math.round((scopedTotals.powerKWh * multiplier * 1.12) / 1000).toLocaleString('vi-VN')
-    : Math.round(scopedTotals.powerKWh * multiplier * 1.12).toLocaleString('vi-VN');
-
-  const co2DisplayVal =
-    isMultiYear || (role === 'bod' && isYear)
-      ? Math.round((scopedTotals.co2Kg * multiplier) / 1000).toLocaleString('vi-VN')
-      : Math.round(scopedTotals.co2Kg * multiplier).toLocaleString('vi-VN');
-  const co2DisplayUnit = isMultiYear || (role === 'bod' && isYear) ? 'tấn CO₂e' : 'kg CO₂e';
-
-  const co2QuotaVal =
-    isMultiYear || (role === 'bod' && isYear)
-      ? Math.round((scopedTotals.co2Kg * multiplier * 1.16) / 1000).toLocaleString('vi-VN')
-      : Math.round(scopedTotals.co2Kg * multiplier * 1.16).toLocaleString('vi-VN');
-
-  const waterDisplayVal = Math.round(scopedTotals.waterM3 * multiplier).toLocaleString('vi-VN');
-  const waterQuotaVal = Math.round(scopedTotals.waterM3 * multiplier * 1.25).toLocaleString('vi-VN');
+  const waterDisplayVal = scopedTotals.waterM3.toLocaleString('vi-VN');
+  const waterDisplayUnit = 'm³';
+  const waterQuotaVal = scopedTotals.effectiveWaterLimit.toLocaleString('vi-VN');
+  const waterPct = scopedTotals.effectiveWaterLimit > 0
+    ? Math.round((scopedTotals.waterM3 / scopedTotals.effectiveWaterLimit) * 100)
+    : 0;
 
   return (
     <div className="flex-1 flex flex-col gap-4">
@@ -197,10 +180,20 @@ export const ESGReportsView: React.FC = () => {
             <p className="text-slate-500 mt-0.5">
               Phân hệ quản trị: AMIS ESG Monitoring • Đơn vị lập biểu: {reportScopeName}
             </p>
-            <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-600">
-              <span className="font-semibold text-teal-700">Kỳ kiểm kê: {currentPeriodConfig.label}</span>
+            <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-600 flex-wrap">
+              <span className="font-semibold text-teal-700">Kỳ kiểm kê: {currentPeriodConfig.label} ({scopedTotals.dateRange})</span>
               <span>•</span>
               <span className="text-slate-500">Chu kỳ định mức: {currentRoleConfig.evalPeriodLabel}</span>
+              <span>•</span>
+              <span
+                className={`font-semibold px-2 py-0.5 rounded text-[10.5px] ${
+                  scopedTotals.isClosedPeriod
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                }`}
+              >
+                {scopedTotals.isClosedPeriod ? 'ĐÃ ĐÓNG SỔ KIỂM TOÁN (SỐ LIỆU ĐÓNG BĂNG)' : 'KỲ HIỆN TẠI (VẬN HÀNH LIVE)'}
+              </span>
             </div>
           </div>
 
@@ -238,13 +231,33 @@ export const ESGReportsView: React.FC = () => {
                 <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-500">
                   {powerQuotaVal}
                 </td>
-                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono text-emerald-700 font-bold">
-                  89.3%
+                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold">
+                  <span
+                    className={
+                      powerPct >= 100
+                        ? 'text-red-600'
+                        : powerPct >= 80
+                        ? 'text-amber-600'
+                        : 'text-emerald-700'
+                    }
+                  >
+                    {powerPct}%
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-center">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt chuẩn ISO 50001
-                  </span>
+                  {powerPct >= 100 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                      Vượt định mức ({powerPct}%)
+                    </span>
+                  ) : powerPct >= 80 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Cận định mức ({powerPct}%)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt chuẩn ISO 50001
+                    </span>
+                  )}
                 </td>
               </tr>
 
@@ -260,13 +273,33 @@ export const ESGReportsView: React.FC = () => {
                 <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-500">
                   {co2QuotaVal}
                 </td>
-                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono text-emerald-700 font-bold">
-                  86.2%
+                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold">
+                  <span
+                    className={
+                      co2Pct >= 100
+                        ? 'text-red-600'
+                        : co2Pct >= 80
+                        ? 'text-amber-600'
+                        : 'text-emerald-700'
+                    }
+                  >
+                    {co2Pct}%
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-center">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt hạn ngạch GHG
-                  </span>
+                  {co2Pct >= 100 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                      Vượt định mức ({co2Pct}%)
+                    </span>
+                  ) : co2Pct >= 80 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Cận định mức ({co2Pct}%)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt hạn ngạch GHG
+                    </span>
+                  )}
                 </td>
               </tr>
 
@@ -275,20 +308,40 @@ export const ESGReportsView: React.FC = () => {
                 <td className="py-2.5 px-3 border-r border-slate-200 font-semibold">
                   Lưu lượng nước thải sản xuất qua trạm xử lý MBR
                 </td>
-                <td className="py-2.5 px-3 border-r border-slate-200 font-mono font-medium">m³</td>
+                <td className="py-2.5 px-3 border-r border-slate-200 font-mono font-medium">{waterDisplayUnit}</td>
                 <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono font-bold text-slate-900">
                   {waterDisplayVal}
                 </td>
                 <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-500">
                   {waterQuotaVal}
                 </td>
-                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono text-emerald-700 font-bold">
-                  80.0%
+                <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold">
+                  <span
+                    className={
+                      waterPct >= 100
+                        ? 'text-red-600'
+                        : waterPct >= 80
+                        ? 'text-amber-600'
+                        : 'text-emerald-700'
+                    }
+                  >
+                    {waterPct}%
+                  </span>
                 </td>
                 <td className="py-2.5 px-3 text-center">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt chuẩn QCVN 40 Cột A
-                  </span>
+                  {waterPct >= 100 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                      Vượt định mức ({waterPct}%)
+                    </span>
+                  ) : waterPct >= 80 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Cận định mức ({waterPct}%)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đạt chuẩn QCVN 40 Cột A
+                    </span>
+                  )}
                 </td>
               </tr>
             </tbody>
