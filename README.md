@@ -178,17 +178,62 @@ Bộ công cụ phục vụ kiểm toán độc lập và lập báo cáo phát 
 
 ## 🎛️ Động cơ Mô phỏng Hiện trường (Simulation Control Engine)
 
-Bảng điều khiển mô phỏng (`SimulationControlPanel`) là trái tim tạo nên tính tương tác sống động của ứng dụng:
+Bảng điều khiển mô phỏng (`SimulationControlPanel`) là trái tim tạo nên tính tương tác sống động và chân thực của ứng dụng, được cấu trúc theo 3 phân khu chuyên biệt:
 
-* **Thiết kế Capsule Pill thông minh:** Thu gọn dạng viên thuốc nổi ở góc dưới màn hình, không che khuất không gian làm việc của người dùng, có thể mở rộng bất cứ lúc nào.
-* **Trình phát luồng dữ liệu SCADA (Live Telemetry Streaming):** Cho phép bật/tắt truyền dữ liệu giả lập thời gian thực với tần số linh hoạt từ **1 giây đến 5 giây/lần**.
-* **Biên độ dao động phụ tải (Fluctuation Level):** Cung cấp 3 mức độ dao động ngẫu nhiên: Thấp (Low: ±2%), Trung bình (Medium: ±5%), Cao (High: ±12%).
-* **Kích hoạt sự cố giả lập theo kịch bản (Anomaly Injection):**
-  * *Rò rỉ nước áp lực cao (Water Leakage):* Bơm làm mát tăng đột ngột lưu lượng m³/h.
-  * *Quá tải hệ thống khí nén (Air Compressor Surge):* Tăng vọt công suất kW vượt ngưỡng an toàn.
-  * *Mất cân bằng lò hơi (Boiler Combustion Anomaly):* Khí thải CO₂ tăng vọt bất thường.
-* **Cơ chế cộng dồn sự cố theo Kỳ:** Cho phép kích hoạt sự cố vào kỳ quá khứ (để kiểm tra phản ứng của số liệu chốt sổ) hoặc kỳ hiện tại.
-* **Nút Reset Hệ thống:** Khôi phục toàn bộ trạng thái dữ liệu về giá trị vận hành tiêu chuẩn ban đầu chỉ với 1 cú click.
+### 4.1. Thiết kế Giao diện Thông minh (Floating Capsule Pill)
+* **Nút điều khiển nổi dạng viên thuốc (Floating Pill):** Nằm gọn gàng tại góc dưới bên phải màn hình, không che khuất không gian làm việc.
+* **Huy hiệu kịch bản tức thời (Dynamic Scenario Badge):** Khi thu gọn, nút nổi vẫn hiển thị tên kịch bản đang vận hành (ví dụ: `Ca sản xuất cao điểm`, `Sự cố lò hơi sinh khối`) và đèn tín hiệu nhấp nháy luồng truyền SCADA.
+* **Còi báo động SCADA thực tế (Audio Alarm Synthesizer):** Tích hợp bộ phát âm thanh chuông đôi công nghiệp ($880\text{ Hz} \to 659\text{ Hz}$) sử dụng Web Audio API gốc của trình duyệt, cung cấp nút gạt bật/tắt `🔊 Còi: Bật` / `🔇 Còi: Tắt` ngay trên thanh tiêu đề.
+
+---
+
+### 4.2. Tab 1: 6 Kịch bản Vận hành Công nghiệp Thực tế (1-Click Presets)
+Cho phép người dùng kích hoạt tức thời các kịch bản sản xuất thực tế tại chuỗi nhà máy Vinamilk:
+
+1. **⚡ Ca sản xuất Cao điểm (Peak Production Shift):**
+   * *Bối cảnh:* Dây chuyền Tiệt trùng UHT và Chiết rót Aseptic chạy 100% công suất để kịp đơn hàng xuất khẩu đi thị trường Mỹ/EU.
+   * *Tác động:* Phụ tải thiết bị tăng vọt lên **98% - 105% công suất thiết kế**, ghi nhận cảnh báo cận tải trên toàn nhà máy và phát âm thanh cảnh báo SCADA.
+2. **🌿 Chế độ Vận hành Xanh RE100 (Eco-Green Optimization):**
+   * *Bối cảnh:* Kích hoạt chính sách tiết kiệm điện năng và tối ưu hóa nguồn cung xanh.
+   * *Tác động:* Tối đa hóa công suất Solar Rooftop 5.4 MWp và lò hơi trấu ép, giảm phụ tải mua ngoài EVN, đưa các chỉ số về dải màu xanh an toàn (<70%) và giảm **35% phát thải CO₂**.
+3. **🔥 Sự cố Lò hơi Sinh khối (Boiler Combustion Anomaly):**
+   * *Bối cảnh:* Kẹt ghi buồng đốt tầng sôi lò trấu ép 10 T/h, nhà máy buộc phải chuyển sang đốt dầu FO/DO dự phòng.
+   * *Tác động:* Phát thải CO₂ tức thời vọt tăng **138% ngưỡng quy chuẩn**, kích hoạt cảnh báo đỏ Critical cấp nhà máy và còi báo động SCADA.
+4. **💧 Bục Đường ống Nước Vệ sinh CIP (CIP Pipe Burst):**
+   * *Bối cảnh:* Bục gioăng áp lực đường ống nước tẩy rửa tiệt trùng CIP tại Xưởng Chế biến sữa tiệt trùng.
+   * *Tác động:* Lưu lượng nước sạch m³/h vọt lên **145% định mức**, bừng đỏ trên sơ đồ mặt bằng SCADA.
+5. **☀️ Nắng Đạt đỉnh Giữa trưa (100% Solar Peak):**
+   * *Bối cảnh:* Bức xạ quang năng đạt cực đại ($1.000\text{ W/m}^2$) vào khung giờ 11:30 - 13:30.
+   * *Tác động:* Hệ thống Solar Rooftop phát 100% công suất 5.4 MWp, tự cấp hoàn toàn cho Cụm kho thông minh AS/RS và chiếu sáng.
+6. **⚠️ Giờ Cao điểm Điện lực EVN (Demand-Response Surcharge):**
+   * *Bối cảnh:* Lưới điện quốc gia chuyển sang khung giờ cao điểm (09:30-11:30 & 17:00-20:00) với mức giá đắt nhất $3.250\text{ đ/kWh}$ ($+82\%$).
+   * *Tác động:* Kích hoạt cảnh báo điều tiết phụ tải, tự động khuyến nghị dịch chuyển các tác vụ nặng (như sạc pin xe nâng tự động AGV) sang giờ thấp điểm ban đêm.
+
+---
+
+### 4.3. Tab 2: Phân quyền 3 Cấp & Kiểm soát Sự cố Kỳ Đóng sổ
+* **Mô phỏng 3 vai trò người dùng:** Ban Giám đốc (BOD) $\leftrightarrow$ Quản đốc Nhà máy $\leftrightarrow$ Trưởng bộ phận Phân xưởng.
+* **Bộ chọn phạm vi thử nghiệm:** Cho phép lựa chọn nhanh từng cơ sở sản xuất (NM Bình Dương, NM Nghệ An, Trang trại Green Farm Tây Ninh) và từng phân xưởng.
+* **Cơ chế kiểm soát Kỳ Đóng sổ vs Kỳ Hiện tại:**
+  * 🔒 *Kỳ đã đóng sổ:* Dữ liệu sự cố cộng dồn vào quá khứ và cả năm, kỳ hiện tại giữ nguyên không bị ảnh hưởng theo nguyên tắc bất biến kiểm toán.
+  * 🔴 *Kỳ hiện tại (Live):* Đẩy vọt công suất tức thời vượt ngưỡng 100%, làm thanh tiến trình live bừng đỏ cảnh báo tràn.
+
+---
+
+### 4.4. Tab 3: Khung giờ EVN 3 Giá, Thời tiết & Động cơ SCADA Live
+* **Mô phỏng Khung giờ Biểu giá EVN:**
+  * 🟢 *Giờ thấp điểm (22h - 04h):* Biểu giá $1.180\text{ đ/kWh}$.
+  * 🟡 *Giờ bình thường (Tiêu chuẩn):* Biểu giá $1.780\text{ đ/kWh}$.
+  * 🔴 *Giờ cao điểm (+82%):* Biểu giá $3.250\text{ đ/kWh}$.
+* **Mô phỏng Bức xạ Thời tiết Năng lượng Mặt trời:**
+  * ☀️ *Nắng gắt:* Hiệu suất Solar đạt $100\%$.
+  * ⛅ *Nhiều mây:* Hiệu suất Solar đạt $60\%$.
+  * 🌧️ *Mưa bão:* Hiệu suất Solar suy giảm còn $15\%$, nhà máy tự động tăng tỷ trọng nhận từ điện lưới.
+* **Điều khiển Truyền dữ liệu SCADA Live:**
+  * Bật/Tắt luồng truyền dữ liệu thời gian thực.
+  * Tùy chỉnh tần số cập nhật: Nhanh ($1.5\text{s}$), Tiêu chuẩn ($3.0\text{s}$), Chậm ($6.0\text{s}$).
+  * Biên độ dao động ngẫu nhiên: Thấp ($\pm 1.5\%$), Vừa ($\pm 3.5\%$), Cao ($\pm 7\%$).
+  * Nút **Khôi phục Cài đặt Gốc (Reset):** Đưa toàn bộ hệ thống về trạng thái baseline chuẩn ban đầu.
 
 ---
 
@@ -217,6 +262,8 @@ Bảng điều khiển mô phỏng (`SimulationControlPanel`) là trái tim tạ
 * **Trực quan hóa Dữ liệu (SVG Native Visualizations):**
   * Toàn bộ biểu đồ spline diện tích, thanh nhiệt heatmap và vạch định mức được vẽ bằng **SVG Native**.
   * Sử dụng SMIL Native `<animate>` cho hiệu ứng radar ping, đảm bảo tuyệt đối không bị giật tọa độ và đạt hiệu năng render 60fps mà không cần thư viện đồ thị cồng kềnh.
+* **Âm thanh Cảnh báo Hiện trường (Industrial Audio Synthesizer):**
+  * Sử dụng **Web Audio API** gốc phát sóng âm chuông đôi tần số kép ($880\text{ Hz} \to 659\text{ Hz}$) hoàn toàn từ client, không phụ thuộc tài nguyên mạng hay file mp3 ngoài.
 
 ---
 
