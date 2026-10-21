@@ -2,18 +2,20 @@
 
 import React, { useState } from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
-import { BarChart2, Zap, Flame, Droplet } from 'lucide-react';
+import { BarChart2, Zap, Flame, Droplet, ArrowUpRight } from 'lucide-react';
 import { MetricType } from '@/types/esg';
 import { QuotaBar150 } from './QuotaBar150';
 
 export const ESGComparisonChart: React.FC = () => {
-  const { role, factories, selectedFactoryId, selectedWorkshopId } = useESGSimulation();
+  const { role, factories, selectedFactoryId, selectedWorkshopId, navigateTo } = useESGSimulation();
   const [metric, setMetric] = useState<MetricType>('power');
 
   // Determine comparison items based on role
   let comparisonTitle = '';
   let comparisonSubtitle = '';
   let items: {
+    id: string;
+    targetType: 'factory' | 'workshop' | 'device';
     name: string;
     value: number;
     max: number;
@@ -47,6 +49,8 @@ export const ESGComparisonChart: React.FC = () => {
         ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
+        id: f.id,
+        targetType: 'factory' as const,
         name: f.name,
         value: val,
         max,
@@ -77,6 +81,8 @@ export const ESGComparisonChart: React.FC = () => {
         ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
+        id: w.id,
+        targetType: 'workshop' as const,
         name: w.name,
         value: val,
         max,
@@ -112,6 +118,8 @@ export const ESGComparisonChart: React.FC = () => {
         ratio >= 1.0 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
 
       return {
+        id: d.id,
+        targetType: 'device' as const,
         name: d.name,
         value: val,
         max,
@@ -120,6 +128,28 @@ export const ESGComparisonChart: React.FC = () => {
       };
     });
   }
+
+  const handleDrilldown = (item: (typeof items)[0]) => {
+    if (item.targetType === 'factory') {
+      navigateTo('esg-realtime', {
+        factoryId: item.id,
+        viewLevel: 'factory',
+      });
+    } else if (item.targetType === 'workshop') {
+      navigateTo('esg-realtime', {
+        factoryId: currentFactory.id,
+        workshopId: item.id,
+        viewLevel: 'workshop',
+      });
+    } else {
+      navigateTo('esg-realtime', {
+        factoryId: currentFactory.id,
+        workshopId: currentWorkshop.id,
+        deviceId: item.id,
+        viewLevel: 'device',
+      });
+    }
+  };
 
   const unitLabel = metric === 'power' ? 'kWh' : metric === 'co2' ? 'kg' : 'm³';
   const baseColor =
@@ -183,7 +213,12 @@ export const ESGComparisonChart: React.FC = () => {
           const isOver = percentage > 100;
 
           return (
-            <div key={idx} className="space-y-1">
+            <div
+              key={idx}
+              className="space-y-1 p-1 rounded-lg hover:bg-teal-50/30 transition-colors group cursor-pointer"
+              onClick={() => handleDrilldown(item)}
+              title="Click để soi chi tiết trên SCADA"
+            >
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <span
@@ -195,7 +230,7 @@ export const ESGComparisonChart: React.FC = () => {
                         : 'bg-emerald-500'
                     }`}
                   />
-                  <span className="font-semibold text-slate-800 truncate max-w-[240px]">
+                  <span className="font-semibold text-slate-800 group-hover:text-teal-800 transition-colors truncate max-w-[240px]">
                     {item.name}
                   </span>
                 </div>
@@ -215,6 +250,7 @@ export const ESGComparisonChart: React.FC = () => {
                   >
                     {percentage}%
                   </span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-300 group-hover:text-teal-600 transition-colors" />
                 </div>
               </div>
 
@@ -242,7 +278,7 @@ export const ESGComparisonChart: React.FC = () => {
             Đỏ: Vượt định mức
           </span>
         </span>
-        <span className="text-teal-700 font-medium hidden sm:inline">Tự động đồng bộ với thẩm quyền vai trò</span>
+        <span className="text-teal-700 font-medium hidden sm:inline">Click dòng để chuyển sang SCADA</span>
       </div>
     </div>
   );

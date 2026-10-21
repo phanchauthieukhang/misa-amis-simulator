@@ -64,7 +64,10 @@ export default function Home() {
   const isEsgNav = activeNavId.startsWith('esg-');
 
   return (
-    <ESGSimulationProvider>
+    <ESGSimulationProvider
+      activeNavId={activeNavId}
+      onNavigate={(id) => setActiveNavId(id)}
+    >
       <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#f4f5f8] relative">
         {/* Toast Notification Container */}
         <ESGToast />

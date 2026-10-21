@@ -11,6 +11,7 @@ import {
   RoleThresholdConfig,
   AlertResolutionPayload,
   RealtimeViewLevel,
+  ESGNavigationOptions,
 } from '@/types/esg';
 import { INITIAL_VINAMILK_DATA, INITIAL_ALERTS, ROLE_THRESHOLD_CONFIGS } from '@/data/vinamilk-mock';
 
@@ -28,6 +29,10 @@ interface PeriodMetrics {
 }
 
 interface ESGSimulationContextType {
+  // Navigation & Drilldown
+  activeNavId: string;
+  navigateTo: (navId: string, options?: ESGNavigationOptions) => void;
+
   // Role & Scope
   role: UserRole;
   setRole: (role: UserRole) => void;
@@ -101,7 +106,17 @@ const INITIAL_PERIOD_DATA: Record<string, PeriodMetrics> = {
   today: { powerKWh: 145, co2Kg: 95, waterM3: 11 }, // Ca hôm nay (72.5% định mức ca 200)
 };
 
-export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export interface ESGSimulationProviderProps {
+  children: ReactNode;
+  activeNavId?: string;
+  onNavigate?: (navId: string) => void;
+}
+
+export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
+  children,
+  activeNavId = 'esg-dashboard',
+  onNavigate,
+}) => {
   const [role, setRoleState] = useState<UserRole>('bod');
   const [factories, setFactories] = useState<FactoryItem[]>(INITIAL_VINAMILK_DATA);
   const [alerts, setAlerts] = useState<ESGAlert[]>(INITIAL_ALERTS);
@@ -145,6 +160,27 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   const dismissToast = useCallback(() => {
     setToast(null);
   }, []);
+
+  const navigateTo = useCallback(
+    (navId: string, options?: ESGNavigationOptions) => {
+      if (options?.factoryId) {
+        setSelectedFactoryId(options.factoryId);
+      }
+      if (options?.workshopId) {
+        setSelectedWorkshopId(options.workshopId);
+      }
+      if (options?.deviceId !== undefined) {
+        setSelectedDeviceId(options.deviceId);
+      }
+      if (options?.viewLevel) {
+        setViewLevel(options.viewLevel);
+      }
+      if (onNavigate) {
+        onNavigate(navId);
+      }
+    },
+    [onNavigate]
+  );
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
@@ -896,6 +932,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   return (
     <ESGSimulationContext.Provider
       value={{
+        activeNavId,
+        navigateTo,
         role,
         setRole,
         currentRoleConfig,

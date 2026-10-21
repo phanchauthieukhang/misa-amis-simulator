@@ -5,6 +5,8 @@ import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { ESGStatsCards } from './ESGStatsCards';
 import { ESGTrendChart } from './ESGTrendChart';
 import { ESGComparisonChart } from './ESGComparisonChart';
+import { ESGRenewableEnergyWidget } from './ESGRenewableEnergyWidget';
+import { ESGFinancialImpactWidget } from './ESGFinancialImpactWidget';
 import { ESGRankingTable } from './ESGRankingTable';
 import { ESGAlertsList } from './ESGAlertsList';
 import {
@@ -107,13 +109,23 @@ export const ESGDashboard: React.FC = () => {
       {/* 4 Stats Cards */}
       <ESGStatsCards />
 
-      {/* Mid Row: Line Chart + Bar Comparison */}
+      {/* Mid Row 1: Line Chart + Bar Comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-7">
           <ESGTrendChart />
         </div>
         <div className="lg:col-span-5">
           <ESGComparisonChart />
+        </div>
+      </div>
+
+      {/* Mid Row 2: Renewable Energy & Net Zero Transition + Financial Impact */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-6">
+          <ESGRenewableEnergyWidget />
+        </div>
+        <div className="lg:col-span-6">
+          <ESGFinancialImpactWidget />
         </div>
       </div>
 

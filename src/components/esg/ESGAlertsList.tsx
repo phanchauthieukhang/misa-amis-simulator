@@ -16,11 +16,12 @@ import {
   Paperclip,
   X,
   FileCheck2,
+  ArrowUpRight,
 } from 'lucide-react';
 import { MetricType, ESGAlert, AlertResolutionPayload } from '@/types/esg';
 
 export const ESGAlertsList: React.FC = () => {
-  const { roleFilteredAlerts, resolveAlert, role, currentRoleConfig } = useESGSimulation();
+  const { roleFilteredAlerts, resolveAlert, role, currentRoleConfig, navigateTo } = useESGSimulation();
   const [filterStatus, setFilterStatus] = useState<'all' | 'unresolved' | 'resolved'>('unresolved');
 
   // Resolution Modal State
@@ -269,7 +270,13 @@ export const ESGAlertsList: React.FC = () => {
 
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
         <span>Tiếp nhận cảnh báo theo cấp thẩm quyền & chu kỳ tích lũy thời gian</span>
-        <span className="text-teal-700 font-medium">{currentRoleConfig.scopeLabel}</span>
+        <button
+          onClick={() => navigateTo('esg-alerts')}
+          className="text-teal-700 hover:text-teal-800 font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+        >
+          <span>Mở Trung tâm Cảnh báo</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Quick Modal inside Dashboard Alert List */}

@@ -2,15 +2,17 @@
 
 import React from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
-import { Zap, Flame, Droplet, AlertTriangle, ArrowUpDown, Lock } from 'lucide-react';
+import { Zap, Flame, Droplet, AlertTriangle, ArrowUpDown, Lock, ArrowUpRight } from 'lucide-react';
 import { QuotaBar150 } from './QuotaBar150';
 
 export const ESGStatsCards: React.FC = () => {
   const {
+    role,
     scopedTotals,
     unitPreferences,
     toggleUnit,
     isLiveStreaming,
+    navigateTo,
   } = useESGSimulation();
 
   // Thresholds from scoped totals based on selected closed/open period
@@ -151,7 +153,20 @@ export const ESGStatsCards: React.FC = () => {
           <span>
             Định mức: <strong className="font-mono text-slate-700">{powerLimitDisplay}</strong>
           </span>
-          {getStatusBadge(powerRatio, powerPct)}
+          <div className="flex items-center gap-1.5">
+            {getStatusBadge(powerRatio, powerPct)}
+            <button
+              onClick={() =>
+                navigateTo('esg-realtime', {
+                  viewLevel: role === 'bod' ? 'enterprise' : role === 'factory_director' ? 'factory' : 'workshop',
+                })
+              }
+              className="text-slate-400 hover:text-teal-700 transition-colors p-0.5 rounded hover:bg-teal-50"
+              title="Soi trực tiếp trên SCADA IoT"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -200,7 +215,20 @@ export const ESGStatsCards: React.FC = () => {
           <span>
             Định mức: <strong className="font-mono text-slate-700">{co2LimitDisplay}</strong>
           </span>
-          {getStatusBadge(co2Ratio, co2Pct)}
+          <div className="flex items-center gap-1.5">
+            {getStatusBadge(co2Ratio, co2Pct)}
+            <button
+              onClick={() =>
+                navigateTo('esg-realtime', {
+                  viewLevel: role === 'bod' ? 'enterprise' : role === 'factory_director' ? 'factory' : 'workshop',
+                })
+              }
+              className="text-slate-400 hover:text-teal-700 transition-colors p-0.5 rounded hover:bg-teal-50"
+              title="Soi trực tiếp trên SCADA IoT"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -249,7 +277,20 @@ export const ESGStatsCards: React.FC = () => {
           <span>
             Định mức: <strong className="font-mono text-slate-700">{waterLimitDisplay}</strong>
           </span>
-          {getStatusBadge(waterRatio, waterPct)}
+          <div className="flex items-center gap-1.5">
+            {getStatusBadge(waterRatio, waterPct)}
+            <button
+              onClick={() =>
+                navigateTo('esg-realtime', {
+                  viewLevel: role === 'bod' ? 'enterprise' : role === 'factory_director' ? 'factory' : 'workshop',
+                })
+              }
+              className="text-slate-400 hover:text-teal-700 transition-colors p-0.5 rounded hover:bg-teal-50"
+              title="Soi trực tiếp trên SCADA IoT"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -291,15 +332,24 @@ export const ESGStatsCards: React.FC = () => {
 
         <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11.5px] text-slate-500">
           <span>Quy mô: {scopedTotals.deviceCount} thiết bị</span>
-          <span
-            className={`font-semibold text-[11px] px-2 py-0.5 rounded ${
-              scopedTotals.alertCount > 0
-                ? 'text-amber-800 bg-amber-50 border border-amber-200'
-                : 'text-emerald-800 bg-emerald-50 border border-emerald-200'
-            }`}
-          >
-            {scopedTotals.alertCount > 0 ? `${scopedTotals.alertCount} sự cố chờ duyệt` : 'Hệ thống an toàn'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`font-semibold text-[11px] px-2 py-0.5 rounded ${
+                scopedTotals.alertCount > 0
+                  ? 'text-amber-800 bg-amber-50 border border-amber-200'
+                  : 'text-emerald-800 bg-emerald-50 border border-emerald-200'
+              }`}
+            >
+              {scopedTotals.alertCount > 0 ? `${scopedTotals.alertCount} sự cố chờ duyệt` : 'Hệ thống an toàn'}
+            </span>
+            <button
+              onClick={() => navigateTo('esg-alerts')}
+              className="text-slate-400 hover:text-amber-700 transition-colors p-0.5 rounded hover:bg-amber-50"
+              title="Mở phân hệ Quản trị Cảnh báo & Ngưỡng An toàn"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

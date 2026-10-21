@@ -4,12 +4,13 @@ import React, { useState } from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { ESG_TREND_DATA } from '@/data/vinamilk-mock';
 import { MetricType } from '@/types/esg';
-import { TrendingUp, Calendar, Zap, Flame, Droplet } from 'lucide-react';
+import { TrendingUp, Zap, Flame, Droplet, Target, AlertCircle } from 'lucide-react';
 
 export const ESGTrendChart: React.FC = () => {
-  const { timePeriod, setTimePeriod, unitPreferences } = useESGSimulation();
+  const { timePeriod, scopedTotals } = useESGSimulation();
   const [selectedMetric, setSelectedMetric] = useState<MetricType | 'all'>('all');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [showQuotaLine, setShowQuotaLine] = useState<boolean>(true);
 
   const rawData =
     ESG_TREND_DATA[timePeriod as keyof typeof ESG_TREND_DATA] || ESG_TREND_DATA.year;
@@ -48,32 +49,61 @@ export const ESGTrendChart: React.FC = () => {
 
   // Chart Dimensions
   const width = 640;
-  const height = 220;
+  const height = 230;
   const paddingX = 40;
-  const paddingY = 25;
+  const paddingY = 28;
   const chartW = width - paddingX * 2;
   const chartH = height - paddingY * 2;
 
-  // Max values for normalization
-  const maxPower = Math.max(...rawData.map((d) => d.power), 100);
-  const maxCo2 = Math.max(...rawData.map((d) => d.co2), 50);
-  const maxWater = Math.max(...rawData.map((d) => d.water), 10);
+  // Quota benchmark calculations per step
+  const numPoints = Math.max(1, rawData.length);
+  const quotaPower = Math.round(scopedTotals.effectivePowerLimit / numPoints);
+  const quotaCo2 = Math.round(scopedTotals.effectiveCo2Limit / numPoints);
+  const quotaWater = Number((scopedTotals.effectiveWaterLimit / numPoints).toFixed(1));
 
-  // Helper to generate SVG polyline / path
+  // Max values for normalization, padded to give headroom above quota line
+  const maxPower = Math.max(...rawData.map((d) => d.power), quotaPower * 1.15, 100);
+  const maxCo2 = Math.max(...rawData.map((d) => d.co2), quotaCo2 * 1.15, 50);
+  const maxWater = Math.max(...rawData.map((d) => d.water), quotaWater * 1.15, 10);
+
+  // Active quota config for the reference line
+  let activeQuotaVal = quotaPower;
+  let activeMaxVal = maxPower;
+  let activeQuotaUnit = 'kWh';
+  let activeQuotaTitle = 'Định mức điện chuẩn (100%)';
+  if (selectedMetric === 'co2') {
+    activeQuotaVal = quotaCo2;
+    activeMaxVal = maxCo2;
+    activeQuotaUnit = 'kg CO2e';
+    activeQuotaTitle = 'Định mức CO₂ chuẩn (100%)';
+  } else if (selectedMetric === 'water') {
+    activeQuotaVal = quotaWater;
+    activeMaxVal = maxWater;
+    activeQuotaUnit = 'm³';
+    activeQuotaTitle = 'Định mức nước chuẩn (100%)';
+  }
+
+  const yQuotaLine = height - paddingY - (activeQuotaVal / activeMaxVal) * chartH;
+
+  // Helper to generate SVG coordinates
   const getCoordinates = (metric: MetricType) => {
     return rawData.map((d, i) => {
-      const x = paddingX + (i / (rawData.length - 1)) * chartW;
+      const x = paddingX + (i / Math.max(1, rawData.length - 1)) * chartW;
       let val = d.power;
       let maxVal = maxPower;
+      let quota = quotaPower;
       if (metric === 'co2') {
         val = d.co2;
         maxVal = maxCo2;
+        quota = quotaCo2;
       } else if (metric === 'water') {
         val = d.water;
         maxVal = maxWater;
+        quota = quotaWater;
       }
       const y = height - paddingY - (val / maxVal) * chartH;
-      return { x, y, val };
+      const isOver = val > quota;
+      return { x, y, val, isOver, quota };
     });
   };
 
@@ -104,53 +134,68 @@ export const ESGTrendChart: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-teal-600" />
             Biểu đồ xu hướng tiêu thụ & phát thải
           </h3>
-          <p className="text-xs text-slate-500">
-            {getPeriodDescription()}
-          </p>
+          <p className="text-xs text-slate-500">{getPeriodDescription()}</p>
         </div>
 
-        {/* Metric Filter Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
+        {/* Metric Filter Tabs & Quota Line Toggle */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Quota line toggle button */}
           <button
-            onClick={() => setSelectedMetric('all')}
-            className={`px-2 py-1 rounded-md transition-colors ${
-              selectedMetric === 'all'
-                ? 'bg-white text-slate-800 shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
+            onClick={() => setShowQuotaLine(!showQuotaLine)}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all border ${
+              showQuotaLine
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
             }`}
+            title="Bật/Tắt đường chuẩn định mức an toàn 100%"
           >
-            Tất cả
+            <Target className="w-3 h-3 text-rose-500" />
+            <span>Định mức 100%</span>
           </button>
-          <button
-            onClick={() => setSelectedMetric('power')}
-            className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
-              selectedMetric === 'power'
-                ? 'bg-amber-500 text-white shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-amber-700'
-            }`}
-          >
-            <Zap className="w-3 h-3" /> Điện
-          </button>
-          <button
-            onClick={() => setSelectedMetric('co2')}
-            className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
-              selectedMetric === 'co2'
-                ? 'bg-red-500 text-white shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-red-700'
-            }`}
-          >
-            <Flame className="w-3 h-3" /> CO₂
-          </button>
-          <button
-            onClick={() => setSelectedMetric('water')}
-            className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
-              selectedMetric === 'water'
-                ? 'bg-sky-500 text-white shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-sky-700'
-            }`}
-          >
-            <Droplet className="w-3 h-3" /> Nước
-          </button>
+
+          {/* Metric Selector */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
+            <button
+              onClick={() => setSelectedMetric('all')}
+              className={`px-2 py-1 rounded-md transition-colors ${
+                selectedMetric === 'all'
+                  ? 'bg-white text-slate-800 shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              onClick={() => setSelectedMetric('power')}
+              className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
+                selectedMetric === 'power'
+                  ? 'bg-amber-500 text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-amber-700'
+              }`}
+            >
+              <Zap className="w-3 h-3" /> Điện
+            </button>
+            <button
+              onClick={() => setSelectedMetric('co2')}
+              className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
+                selectedMetric === 'co2'
+                  ? 'bg-red-500 text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-red-700'
+              }`}
+            >
+              <Flame className="w-3 h-3" /> CO₂
+            </button>
+            <button
+              onClick={() => setSelectedMetric('water')}
+              className={`px-2 py-1 rounded-md transition-colors flex items-center gap-1 ${
+                selectedMetric === 'water'
+                  ? 'bg-sky-500 text-white shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-sky-700'
+              }`}
+            >
+              <Droplet className="w-3 h-3" /> Nước
+            </button>
+          </div>
         </div>
       </div>
 
@@ -158,7 +203,7 @@ export const ESGTrendChart: React.FC = () => {
       <div className="relative my-2 w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-[220px] select-none"
+          className="w-full h-[230px] select-none"
         >
           <defs>
             {/* Gradients */}
@@ -192,7 +237,54 @@ export const ESGTrendChart: React.FC = () => {
             );
           })}
 
-          {/* Lines & Area */}
+          {/* 100% Target Quota Reference Line */}
+          {showQuotaLine && yQuotaLine >= paddingY && yQuotaLine <= height - paddingY && (
+            <g className="transition-all duration-300">
+              {/* Highlight background strip for over-quota zone */}
+              <rect
+                x={paddingX}
+                y={paddingY}
+                width={chartW}
+                height={Math.max(0, yQuotaLine - paddingY)}
+                fill="#fef2f2"
+                opacity="0.35"
+              />
+              {/* Red Dashed Quota Line */}
+              <line
+                x1={paddingX}
+                y1={yQuotaLine}
+                x2={width - paddingX}
+                y2={yQuotaLine}
+                stroke="#dc2626"
+                strokeWidth="1.75"
+                strokeDasharray="6 4"
+              />
+              {/* Label badge on quota line */}
+              <rect
+                x={width - paddingX - 220}
+                y={yQuotaLine - 18}
+                width="216"
+                height="16"
+                rx="4"
+                fill="#fee2e2"
+                stroke="#fca5a5"
+                strokeWidth="0.75"
+              />
+              <text
+                x={width - paddingX - 112}
+                y={yQuotaLine - 6}
+                textAnchor="middle"
+                fontSize="9.5"
+                fill="#991b1b"
+                fontWeight="700"
+                fontFamily="sans-serif"
+              >
+                🎯 {activeQuotaTitle}: {activeQuotaVal.toLocaleString('vi-VN')} {activeQuotaUnit}
+              </text>
+            </g>
+          )}
+
+          {/* Lines & Area: Power */}
           {(selectedMetric === 'all' || selectedMetric === 'power') && (
             <>
               <path d={makeAreaD(powerCoords)} fill="url(#powerGrad)" />
@@ -204,22 +296,34 @@ export const ESGTrendChart: React.FC = () => {
                 strokeLinecap="round"
               />
               {powerCoords.map((c, i) => (
-                <circle
-                  key={i}
-                  cx={c.x}
-                  cy={c.y}
-                  r={hoverIndex === i ? 5 : 3.5}
-                  fill="#ffffff"
-                  stroke="#f59e0b"
-                  strokeWidth="2"
-                  className="transition-all cursor-pointer"
-                  onMouseEnter={() => setHoverIndex(i)}
-                  onMouseLeave={() => setHoverIndex(null)}
-                />
+                <g key={`p-${i}`}>
+                  {c.isOver && (
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={hoverIndex === i ? 9 : 7}
+                      fill="#ef4444"
+                      opacity="0.3"
+                      className="animate-ping"
+                    />
+                  )}
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={hoverIndex === i ? 6 : c.isOver ? 5 : 3.5}
+                    fill={c.isOver ? '#ef4444' : '#ffffff'}
+                    stroke={c.isOver ? '#991b1b' : '#f59e0b'}
+                    strokeWidth="2"
+                    className="transition-all cursor-pointer"
+                    onMouseEnter={() => setHoverIndex(i)}
+                    onMouseLeave={() => setHoverIndex(null)}
+                  />
+                </g>
               ))}
             </>
           )}
 
+          {/* Lines & Area: CO2 */}
           {(selectedMetric === 'all' || selectedMetric === 'co2') && (
             <>
               <path d={makeAreaD(co2Coords)} fill="url(#co2Grad)" />
@@ -231,22 +335,34 @@ export const ESGTrendChart: React.FC = () => {
                 strokeLinecap="round"
               />
               {co2Coords.map((c, i) => (
-                <circle
-                  key={i}
-                  cx={c.x}
-                  cy={c.y}
-                  r={hoverIndex === i ? 5 : 3.5}
-                  fill="#ffffff"
-                  stroke="#ef4444"
-                  strokeWidth="2"
-                  className="transition-all cursor-pointer"
-                  onMouseEnter={() => setHoverIndex(i)}
-                  onMouseLeave={() => setHoverIndex(null)}
-                />
+                <g key={`c-${i}`}>
+                  {c.isOver && (
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={hoverIndex === i ? 9 : 7}
+                      fill="#ef4444"
+                      opacity="0.3"
+                      className="animate-ping"
+                    />
+                  )}
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={hoverIndex === i ? 6 : c.isOver ? 5 : 3.5}
+                    fill={c.isOver ? '#ef4444' : '#ffffff'}
+                    stroke="#ef4444"
+                    strokeWidth="2"
+                    className="transition-all cursor-pointer"
+                    onMouseEnter={() => setHoverIndex(i)}
+                    onMouseLeave={() => setHoverIndex(null)}
+                  />
+                </g>
               ))}
             </>
           )}
 
+          {/* Lines & Area: Water */}
           {(selectedMetric === 'all' || selectedMetric === 'water') && (
             <>
               <path d={makeAreaD(waterCoords)} fill="url(#waterGrad)" />
@@ -258,25 +374,36 @@ export const ESGTrendChart: React.FC = () => {
                 strokeLinecap="round"
               />
               {waterCoords.map((c, i) => (
-                <circle
-                  key={i}
-                  cx={c.x}
-                  cy={c.y}
-                  r={hoverIndex === i ? 5 : 3.5}
-                  fill="#ffffff"
-                  stroke="#0284c7"
-                  strokeWidth="2"
-                  className="transition-all cursor-pointer"
-                  onMouseEnter={() => setHoverIndex(i)}
-                  onMouseLeave={() => setHoverIndex(null)}
-                />
+                <g key={`w-${i}`}>
+                  {c.isOver && (
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={hoverIndex === i ? 9 : 7}
+                      fill="#ef4444"
+                      opacity="0.3"
+                      className="animate-ping"
+                    />
+                  )}
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={hoverIndex === i ? 6 : c.isOver ? 5 : 3.5}
+                    fill={c.isOver ? '#ef4444' : '#ffffff'}
+                    stroke="#0284c7"
+                    strokeWidth="2"
+                    className="transition-all cursor-pointer"
+                    onMouseEnter={() => setHoverIndex(i)}
+                    onMouseLeave={() => setHoverIndex(null)}
+                  />
+                </g>
               ))}
             </>
           )}
 
           {/* X Axis Labels */}
           {rawData.map((d, idx) => {
-            const x = paddingX + (idx / (rawData.length - 1)) * chartW;
+            const x = paddingX + (idx / Math.max(1, rawData.length - 1)) * chartW;
             return (
               <text
                 key={idx}
@@ -293,35 +420,102 @@ export const ESGTrendChart: React.FC = () => {
           })}
         </svg>
 
-        {/* Hover Tooltip Overlay */}
+        {/* Hover Tooltip Overlay with Quota Benchmarking */}
         {hoverIndex !== null && rawData[hoverIndex] && (
           <div
-            className="absolute top-2 bg-slate-900/90 text-white px-3 py-2 rounded-lg text-xs shadow-lg pointer-events-none border border-slate-700 transition-all"
+            className="absolute top-2 bg-slate-900/95 text-white px-3.5 py-2.5 rounded-xl text-xs shadow-xl pointer-events-none border border-slate-700 transition-all z-20 backdrop-blur-xs min-w-[240px]"
             style={{
-              left: `${Math.min(width - 150, Math.max(20, powerCoords[hoverIndex]?.x - 60))}px`,
+              left: `${Math.min(width - 250, Math.max(20, powerCoords[hoverIndex]?.x - 120))}px`,
             }}
           >
-            <div className="font-bold text-teal-400 border-b border-slate-700 pb-1 mb-1">
-              Thời điểm: {rawData[hoverIndex].time}
+            <div className="font-bold text-teal-400 border-b border-slate-700 pb-1.5 mb-2 flex items-center justify-between">
+              <span>{rawData[hoverIndex].time}</span>
+              {rawData[hoverIndex].power > quotaPower && (
+                <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> VƯỢT ĐỊNH MỨC
+                </span>
+              )}
             </div>
-            <div className="flex items-center justify-between gap-4 text-amber-300">
-              <span>⚡ Điện:</span>
-              <span className="font-mono font-semibold">{rawData[hoverIndex].power} kWh</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 text-red-300">
-              <span>🏭 CO₂:</span>
-              <span className="font-mono font-semibold">{rawData[hoverIndex].co2} kg</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 text-sky-300">
-              <span>💧 Nước:</span>
-              <span className="font-mono font-semibold">{rawData[hoverIndex].water} m³</span>
+
+            {/* Power Details */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-amber-300">
+                <span className="flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> Điện tiêu thụ:
+                </span>
+                <span className="font-mono font-bold">
+                  {rawData[hoverIndex].power.toLocaleString('vi-VN')} kWh
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10.5px] text-slate-300 pl-4 border-b border-slate-800 pb-1">
+                <span>Định mức: {quotaPower.toLocaleString('vi-VN')} kWh</span>
+                <span
+                  className={`font-mono font-semibold ${
+                    rawData[hoverIndex].power > quotaPower
+                      ? 'text-red-400 font-bold'
+                      : rawData[hoverIndex].power >= quotaPower * 0.85
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {((rawData[hoverIndex].power / quotaPower) * 100).toFixed(1)}% định mức
+                </span>
+              </div>
+
+              {/* CO2 Details */}
+              <div className="flex items-center justify-between gap-3 text-red-300">
+                <span className="flex items-center gap-1">
+                  <Flame className="w-3 h-3" /> Phát thải CO₂:
+                </span>
+                <span className="font-mono font-bold">
+                  {rawData[hoverIndex].co2.toLocaleString('vi-VN')} kg
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10.5px] text-slate-300 pl-4 border-b border-slate-800 pb-1">
+                <span>Định mức: {quotaCo2.toLocaleString('vi-VN')} kg</span>
+                <span
+                  className={`font-mono font-semibold ${
+                    rawData[hoverIndex].co2 > quotaCo2
+                      ? 'text-red-400 font-bold'
+                      : rawData[hoverIndex].co2 >= quotaCo2 * 0.85
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {((rawData[hoverIndex].co2 / quotaCo2) * 100).toFixed(1)}% định mức
+                </span>
+              </div>
+
+              {/* Water Details */}
+              <div className="flex items-center justify-between gap-3 text-sky-300">
+                <span className="flex items-center gap-1">
+                  <Droplet className="w-3 h-3" /> Nước thải:
+                </span>
+                <span className="font-mono font-bold">
+                  {rawData[hoverIndex].water.toLocaleString('vi-VN')} m³
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10.5px] text-slate-300 pl-4">
+                <span>Định mức: {quotaWater.toLocaleString('vi-VN')} m³</span>
+                <span
+                  className={`font-mono font-semibold ${
+                    rawData[hoverIndex].water > quotaWater
+                      ? 'text-red-400 font-bold'
+                      : rawData[hoverIndex].water >= quotaWater * 0.85
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`}
+                >
+                  {((rawData[hoverIndex].water / quotaWater) * 100).toFixed(1)}% định mức
+                </span>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Chart Legend */}
-      <div className="flex items-center justify-center gap-6 pt-2 border-t border-slate-100 text-xs">
+      <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-2 border-t border-slate-100 text-xs">
         <div className="flex items-center gap-1.5 text-slate-600">
           <span className="w-3 h-1 bg-amber-500 rounded-full"></span>
           <span>Điện (kWh)</span>
@@ -333,6 +527,14 @@ export const ESGTrendChart: React.FC = () => {
         <div className="flex items-center gap-1.5 text-slate-600">
           <span className="w-3 h-1 bg-sky-500 rounded-full"></span>
           <span>Nước thải (m³)</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-rose-700 font-medium">
+          <span className="w-3.5 h-0.5 border-t-2 border-dashed border-red-500"></span>
+          <span>Đường chuẩn Định mức (100%)</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-red-600 font-medium">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+          <span>Điểm vượt định mức</span>
         </div>
       </div>
     </div>

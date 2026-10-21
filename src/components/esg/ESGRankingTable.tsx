@@ -2,16 +2,18 @@
 
 import React from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
-import { Award, Zap, Flame, Droplet } from 'lucide-react';
+import { Award, ArrowUpRight } from 'lucide-react';
 
 export const ESGRankingTable: React.FC = () => {
-  const { role, factories, selectedFactoryId, selectedWorkshopId } = useESGSimulation();
+  const { role, factories, selectedFactoryId, selectedWorkshopId, navigateTo } = useESGSimulation();
 
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
   const currentWorkshop = currentFactory.workshops.find((w) => w.id === selectedWorkshopId) || currentFactory.workshops[0];
 
   let rankingTitle = '';
   let rankingList: {
+    id: string;
+    targetType: 'factory' | 'workshop' | 'device';
     name: string;
     code: string;
     power: number;
@@ -26,6 +28,8 @@ export const ESGRankingTable: React.FC = () => {
     rankingList = [...factories]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
       .map((f) => ({
+        id: f.id,
+        targetType: 'factory' as const,
         name: f.name,
         code: f.code,
         power: f.totals.powerKWh,
@@ -39,6 +43,8 @@ export const ESGRankingTable: React.FC = () => {
     rankingList = [...currentFactory.workshops]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
       .map((w) => ({
+        id: w.id,
+        targetType: 'workshop' as const,
         name: w.name,
         code: w.code,
         power: w.totals.powerKWh,
@@ -52,6 +58,8 @@ export const ESGRankingTable: React.FC = () => {
     rankingList = [...currentWorkshop.devices]
       .sort((a, b) => (b.readings.power?.value || 0) - (a.readings.power?.value || 0))
       .map((d) => ({
+        id: d.id,
+        targetType: 'device' as const,
         name: d.name,
         code: d.code,
         power: d.readings.power?.value || 0,
@@ -61,6 +69,28 @@ export const ESGRankingTable: React.FC = () => {
         sub: d.specification,
       }));
   }
+
+  const handleDrilldown = (item: (typeof rankingList)[0]) => {
+    if (item.targetType === 'factory') {
+      navigateTo('esg-realtime', {
+        factoryId: item.id,
+        viewLevel: 'factory',
+      });
+    } else if (item.targetType === 'workshop') {
+      navigateTo('esg-realtime', {
+        factoryId: currentFactory.id,
+        workshopId: item.id,
+        viewLevel: 'workshop',
+      });
+    } else {
+      navigateTo('esg-realtime', {
+        factoryId: currentFactory.id,
+        workshopId: currentWorkshop.id,
+        deviceId: item.id,
+        viewLevel: 'device',
+      });
+    }
+  };
 
   const getRankBadge = (idx: number) => {
     if (idx === 0) {
@@ -111,17 +141,22 @@ export const ESGRankingTable: React.FC = () => {
               <th className="py-2 px-2.5 text-right">🏭 CO₂ (kg)</th>
               <th className="py-2 px-2.5 text-right">💧 Nước (m³)</th>
               <th className="py-2 px-2.5 text-center">Trạng thái</th>
+              <th className="py-2 px-2.5 text-center w-16">SCADA</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {rankingList.map((item, idx) => (
-              <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+              <tr
+                key={idx}
+                className="hover:bg-teal-50/40 transition-colors group cursor-pointer"
+                onClick={() => handleDrilldown(item)}
+              >
                 <td className="py-2.5 px-2.5">{getRankBadge(idx)}</td>
                 <td className="py-2.5 px-2.5">
-                  <div className="font-semibold text-slate-800 truncate max-w-[220px]">
+                  <div className="font-semibold text-slate-800 group-hover:text-teal-800 transition-colors truncate max-w-[200px]">
                     {item.name}
                   </div>
-                  <div className="text-[10.5px] text-slate-400 truncate max-w-[220px]">
+                  <div className="text-[10.5px] text-slate-400 truncate max-w-[200px]">
                     {item.code} • {item.sub}
                   </div>
                 </td>
@@ -151,6 +186,19 @@ export const ESGRankingTable: React.FC = () => {
                       : 'Bình thường'}
                   </span>
                 </td>
+                <td className="py-2.5 px-2.5 text-center">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDrilldown(item);
+                    }}
+                    className="inline-flex items-center gap-0.5 text-[10.5px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded transition-all shadow-2xs"
+                    title="Soi trực tiếp trên SCADA IoT"
+                  >
+                    <span>Soi</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -159,7 +207,7 @@ export const ESGRankingTable: React.FC = () => {
 
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
         <span>Cập nhật liên tục theo cảm biến telemetry</span>
-        <span className="text-teal-700 font-medium">Báo cáo kiểm soát tiêu thụ</span>
+        <span className="text-teal-700 font-medium">Click dòng để chuyển nhanh sang SCADA</span>
       </div>
     </div>
   );
