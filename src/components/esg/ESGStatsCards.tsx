@@ -4,6 +4,60 @@ import React from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { Zap, Flame, Droplet, AlertTriangle, ArrowUpDown } from 'lucide-react';
 
+interface QuotaProgressBarProps {
+  ratio: number;
+  baseColor: string;
+}
+
+const QuotaProgressBar: React.FC<QuotaProgressBarProps> = ({ ratio, baseColor }) => {
+  // 150% Max Scale: 100% standard quota sits exactly at (100 / 150) = 66.67% width
+  const isOver = ratio > 1.0;
+  const baseWidthPct = Math.min(66.67, (Math.min(ratio, 1.0) / 1.5) * 100);
+  const excessWidthPct = isOver
+    ? Math.min(33.33, ((Math.min(ratio, 1.5) - 1.0) / 1.5) * 100)
+    : 0;
+
+  return (
+    <div className="space-y-1 mt-2.5">
+      {/* 150% Scale Gauge Track */}
+      <div className="relative w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
+        {/* Base Segment: 0% up to 100% */}
+        <div
+          className={`h-full transition-all duration-300 ${baseColor}`}
+          style={{ width: `${baseWidthPct}%` }}
+        />
+
+        {/* Excess Segment: Beyond 100% up to 150% (highlighted in prominent RED) */}
+        {isOver && (
+          <div
+            className="h-full bg-red-600 transition-all duration-300 animate-pulse"
+            style={{ width: `${excessWidthPct}%` }}
+          />
+        )}
+
+        {/* 100% Standard Quota Marker */}
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-slate-700/80 z-10"
+          style={{ left: '66.67%' }}
+          title="Ngưỡng định mức tiêu chuẩn 100%"
+        />
+      </div>
+
+      {/* Scale Tick Labels */}
+      <div className="relative w-full h-3 text-[9px] font-mono text-slate-400 select-none">
+        <span className="absolute left-0">0%</span>
+        <span
+          className="absolute -translate-x-1/2 font-bold text-slate-600 flex items-center gap-0.5"
+          style={{ left: '66.67%' }}
+        >
+          <span className="text-slate-400">|</span> 100% (Định mức)
+        </span>
+        <span className="absolute right-0">150%</span>
+      </div>
+    </div>
+  );
+};
+
 export const ESGStatsCards: React.FC = () => {
   const {
     scopedTotals,
@@ -116,15 +170,8 @@ export const ESGStatsCards: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar vs Quota */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2.5">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                powerRatio >= 1.0 ? 'bg-red-500' : powerRatio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${Math.min(100, Math.max(3, powerRatio * 100))}%` }}
-            />
-          </div>
+          {/* 150% Scale Gauge with 100% Marker */}
+          <QuotaProgressBar ratio={powerRatio} baseColor="bg-amber-500" />
         </div>
 
         {/* Standard Quota & Percentage */}
@@ -170,15 +217,8 @@ export const ESGStatsCards: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar vs Quota */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2.5">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                co2Ratio >= 1.0 ? 'bg-red-500' : co2Ratio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${Math.min(100, Math.max(3, co2Ratio * 100))}%` }}
-            />
-          </div>
+          {/* 150% Scale Gauge with 100% Marker */}
+          <QuotaProgressBar ratio={co2Ratio} baseColor="bg-orange-500" />
         </div>
 
         {/* Standard Quota & Percentage */}
@@ -224,15 +264,8 @@ export const ESGStatsCards: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress Bar vs Quota */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2.5">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                waterRatio >= 1.0 ? 'bg-red-500' : waterRatio >= 0.8 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${Math.min(100, Math.max(3, waterRatio * 100))}%` }}
-            />
-          </div>
+          {/* 150% Scale Gauge with 100% Marker */}
+          <QuotaProgressBar ratio={waterRatio} baseColor="bg-sky-500" />
         </div>
 
         {/* Standard Quota & Percentage */}
@@ -264,14 +297,19 @@ export const ESGStatsCards: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress/status bar */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2.5">
+          {/* Status bar */}
+          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mt-2.5">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 scopedTotals.alertCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
               style={{ width: '100%' }}
             />
+          </div>
+          <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 mt-1 select-none">
+            <span>SCADA IoT</span>
+            <span className="font-semibold text-slate-600">28 Cảm biến</span>
+            <span>Trực tuyến</span>
           </div>
         </div>
 
