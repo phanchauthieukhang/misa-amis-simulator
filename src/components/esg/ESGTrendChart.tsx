@@ -298,14 +298,10 @@ export const ESGTrendChart: React.FC = () => {
               {powerCoords.map((c, i) => (
                 <g key={`p-${i}`}>
                   {c.isOver && (
-                    <circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={hoverIndex === i ? 9 : 7}
-                      fill="#ef4444"
-                      opacity="0.3"
-                      className="animate-ping"
-                    />
+                    <circle cx={c.x} cy={c.y} r={5} fill="#ef4444" opacity="0.6">
+                      <animate attributeName="r" values="5;14" dur="1.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.7;0" dur="1.5s" repeatCount="indefinite" />
+                    </circle>
                   )}
                   <circle
                     cx={c.x}
@@ -337,14 +333,10 @@ export const ESGTrendChart: React.FC = () => {
               {co2Coords.map((c, i) => (
                 <g key={`c-${i}`}>
                   {c.isOver && (
-                    <circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={hoverIndex === i ? 9 : 7}
-                      fill="#ef4444"
-                      opacity="0.3"
-                      className="animate-ping"
-                    />
+                    <circle cx={c.x} cy={c.y} r={5} fill="#ef4444" opacity="0.6">
+                      <animate attributeName="r" values="5;14" dur="1.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.7;0" dur="1.5s" repeatCount="indefinite" />
+                    </circle>
                   )}
                   <circle
                     cx={c.x}
@@ -376,14 +368,10 @@ export const ESGTrendChart: React.FC = () => {
               {waterCoords.map((c, i) => (
                 <g key={`w-${i}`}>
                   {c.isOver && (
-                    <circle
-                      cx={c.x}
-                      cy={c.y}
-                      r={hoverIndex === i ? 9 : 7}
-                      fill="#ef4444"
-                      opacity="0.3"
-                      className="animate-ping"
-                    />
+                    <circle cx={c.x} cy={c.y} r={5} fill="#ef4444" opacity="0.6">
+                      <animate attributeName="r" values="5;14" dur="1.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.7;0" dur="1.5s" repeatCount="indefinite" />
+                    </circle>
                   )}
                   <circle
                     cx={c.x}

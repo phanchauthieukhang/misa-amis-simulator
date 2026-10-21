@@ -408,11 +408,13 @@ export const ESGPredictiveAlert: React.FC = () => {
                     <circle
                       cx={breachX}
                       cy={thresholdY}
-                      r="5"
+                      r="4"
                       fill="#ef4444"
-                      className="animate-ping"
-                      opacity="0.75"
-                    />
+                      opacity="0.6"
+                    >
+                      <animate attributeName="r" values="4;12" dur="1.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.7;0" dur="1.5s" repeatCount="indefinite" />
+                    </circle>
                     <circle
                       cx={breachX}
                       cy={thresholdY}
