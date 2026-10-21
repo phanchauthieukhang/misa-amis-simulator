@@ -9,11 +9,7 @@ import { ESGRankingTable } from './ESGRankingTable';
 import { ESGAlertsList } from './ESGAlertsList';
 import {
   Calendar,
-  Building,
   ShieldCheck,
-  Clock,
-  Sliders,
-  Zap,
 } from 'lucide-react';
 import { TimePeriod } from '@/types/esg';
 
@@ -89,25 +85,6 @@ export const ESGDashboard: React.FC = () => {
               {role === 'bod' ? 'Toàn DN' : role === 'factory_director' ? currentFactory.code : currentWorkshop.code}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* Role Horizon & Threshold Guidance Banner */}
-      <div className="bg-teal-50/70 border border-teal-200 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-teal-900">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-teal-700 flex-shrink-0" />
-          <span>
-            <strong>Cơ chế cảnh báo:</strong> {currentRoleConfig.evalPeriodLabel}
-          </span>
-          <span className="text-teal-400">•</span>
-          <span className="flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-600" />
-            Ngưỡng báo động điện: <strong>&gt; {currentRoleConfig.thresholds.powerDanger.toLocaleString('vi-VN')} {currentRoleConfig.thresholds.powerUnit}</strong>
-          </span>
-        </div>
-
-        <div className="text-[11px] text-teal-700 italic hidden md:block">
-          {currentRoleConfig.rationale}
         </div>
       </div>
 
