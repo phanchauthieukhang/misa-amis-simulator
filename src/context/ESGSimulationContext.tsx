@@ -68,6 +68,7 @@ interface ESGSimulationContextType {
   toggleUnit: (metric: MetricType) => void;
   timePeriod: TimePeriod;
   setTimePeriod: (period: TimePeriod) => void;
+  periodsData: Record<string, PeriodMetrics>;
 
   // Toast
   toast: ToastNotice | null;
@@ -305,7 +306,12 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
             factoryCo2 += workshopCo2;
             factoryWater += workshopWater;
 
-            const wsStatus: 'normal' | 'warning' | 'danger' = hasDanger ? 'danger' : hasWarning ? 'warning' : 'normal';
+            const wsPRatio = workshopPower / 2500;
+            const wsCRatio = workshopCo2 / 1800;
+            const wsWRatio = workshopWater / 250;
+            const wsMaxRatio = Math.max(wsPRatio, wsCRatio, wsWRatio);
+            const wsStatus: 'normal' | 'warning' | 'danger' =
+              wsMaxRatio >= 1.0 ? 'danger' : wsMaxRatio >= 0.8 ? 'warning' : 'normal';
 
             return {
               ...workshop,
@@ -319,11 +325,12 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
             };
           });
 
-          const factStatus: 'normal' | 'warning' | 'danger' = updatedWorkshops.some((w) => w.status === 'danger')
-            ? 'danger'
-            : updatedWorkshops.some((w) => w.status === 'warning')
-            ? 'warning'
-            : 'normal';
+          const factPRatio = factoryPower / 5000;
+          const factCRatio = factoryCo2 / 3500;
+          const factWRatio = factoryWater / 400;
+          const factMaxRatio = Math.max(factPRatio, factCRatio, factWRatio);
+          const factStatus: 'normal' | 'warning' | 'danger' =
+            factMaxRatio >= 1.0 ? 'danger' : factMaxRatio >= 0.8 ? 'warning' : 'normal';
 
           return {
             ...factory,
@@ -962,6 +969,7 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         toggleUnit,
         timePeriod,
         setTimePeriod,
+        periodsData,
         toast,
         dismissToast,
         scopedTotals: calculateScopedTotals(),

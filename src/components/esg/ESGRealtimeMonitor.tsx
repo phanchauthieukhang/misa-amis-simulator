@@ -26,13 +26,21 @@ import {
   AlertTriangle,
   Download,
   Info,
+  Calendar,
+  Lock,
+  Radio,
 } from 'lucide-react';
-import { MetricType, FactoryItem, WorkshopItem, DeviceItem } from '@/types/esg';
+import { MetricType, FactoryItem, WorkshopItem, DeviceItem, TimePeriod } from '@/types/esg';
 
 export const ESGRealtimeMonitor: React.FC = () => {
   const {
     factories,
     role,
+    currentRoleConfig,
+    timePeriod,
+    setTimePeriod,
+    scopedTotals,
+    periodsData,
     viewLevel,
     setViewLevel,
     selectedFactoryId,
@@ -138,6 +146,39 @@ export const ESGRealtimeMonitor: React.FC = () => {
     }, 5000);
   };
 
+  const computeQuotaStatus = (
+    metrics: { power: number; co2?: number; water?: number },
+    limits: { power: number; co2?: number; water?: number }
+  ): 'normal' | 'warning' | 'danger' => {
+    const pRatio = limits.power > 0 ? metrics.power / limits.power : 0;
+    const cRatio = limits.co2 && limits.co2 > 0 && metrics.co2 ? metrics.co2 / limits.co2 : 0;
+    const wRatio = limits.water && limits.water > 0 && metrics.water ? metrics.water / limits.water : 0;
+    const maxRatio = Math.max(pRatio, cRatio, wRatio);
+    if (maxRatio >= 1.0) return 'danger';
+    if (maxRatio >= 0.8) return 'warning';
+    return 'normal';
+  };
+
+  const getFactoryMetrics = (f: FactoryItem) => {
+    if (scopedTotals.isClosedPeriod && timePeriod === 'h1_2026') {
+      if (f.id === 'nm-vnm-bd') {
+        return { power: 26480, co2: 15200, water: 1750, quotaP: 25000, quotaC: 17500, quotaW: 2000 };
+      }
+      if (f.id === 'nm-mega-dairy') {
+        return { power: 13200, co2: 7500, water: 850, quotaP: 25000, quotaC: 17500, quotaW: 2000 };
+      }
+      return { power: 12800, co2: 7400, water: 850, quotaP: 25000, quotaC: 17500, quotaW: 2000 };
+    }
+    return {
+      power: f.totals.powerKWh,
+      co2: f.totals.co2Kg,
+      water: f.totals.waterM3,
+      quotaP: 5000,
+      quotaC: 3500,
+      quotaW: 400,
+    };
+  };
+
   const getStatusBadge = (status: 'normal' | 'warning' | 'danger') => {
     if (status === 'danger') {
       return (
@@ -191,10 +232,19 @@ export const ESGRealtimeMonitor: React.FC = () => {
             <div>
               <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 flex-wrap">
                 <span>Hệ thống giám sát cảm biến đo lường thời gian thực (IoT Telemetry)</span>
-                {isLiveStreaming && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {scopedTotals.isClosedPeriod ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shadow-2xs">
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    ĐÃ ĐÓNG SỔ (SỐ LIỆU ĐÓNG BĂNG KIỂM TOÁN)
+                  </span>
+                ) : isLiveStreaming ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     STREAMING LIVE (3s)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    TẠM DỪNG MÔ PHỎNG
                   </span>
                 )}
               </h2>
@@ -204,14 +254,45 @@ export const ESGRealtimeMonitor: React.FC = () => {
             </div>
           </div>
 
-          {/* Scope Level Indicator Badge */}
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-slate-50 text-slate-700 flex items-center gap-1.5">
+          {/* Controls: Closed/Live Badge + Period Selector + Scope Badge */}
+          <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+            {/* Status Badge: Closed vs Live */}
+            {scopedTotals.isClosedPeriod ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                <span>ĐÃ ĐÓNG SỔ</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
+                <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                <span>LIVE</span>
+              </span>
+            )}
+
+            {/* Role-tailored Period Filter */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium shadow-2xs">
+              <Calendar className="w-3.5 h-3.5 text-teal-600" />
+              <span className="font-semibold text-slate-700">Kỳ:</span>
+              <select
+                value={timePeriod}
+                onChange={(e) => setTimePeriod(e.target.value as TimePeriod)}
+                className="bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                {currentRoleConfig.allowedPeriods.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Scope Level Indicator Badge */}
+            <span className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border bg-slate-50 text-slate-700 flex items-center gap-1.5 shadow-2xs">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-              {viewLevel === 'enterprise' && 'CẤP ĐỘ: TẬP ĐOÀN (3 NHÀ MÁY)'}
-              {viewLevel === 'factory' && `CẤP ĐỘ: NHÀ MÁY (${currentFactory.workshops.length} PHÂN XƯỞNG)`}
-              {viewLevel === 'workshop' && `CẤP ĐỘ: PHÂN XƯỞNG (${currentWorkshop.devices.length} THIẾT BỊ)`}
-              {viewLevel === 'device' && 'CẤP ĐỘ: THIẾT BỊ CHI TIẾT'}
+              {viewLevel === 'enterprise' && 'CẤP ĐỘ: TẬP ĐOÀN'}
+              {viewLevel === 'factory' && `CẤP ĐỘ: NHÀ MÁY`}
+              {viewLevel === 'workshop' && `CẤP ĐỘ: PHÂN XƯỞNG`}
+              {viewLevel === 'device' && 'CẤP ĐỘ: THIẾT BỊ'}
             </span>
           </div>
         </div>
@@ -389,6 +470,15 @@ export const ESGRealtimeMonitor: React.FC = () => {
               {/* Grid of the 3 Factories */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {factories.map((factory) => {
+                  const fMetrics = getFactoryMetrics(factory);
+                  const pRatio = fMetrics.quotaP > 0 ? fMetrics.power / fMetrics.quotaP : 0;
+                  const cRatio = fMetrics.quotaC > 0 ? fMetrics.co2 / fMetrics.quotaC : 0;
+                  const wRatio = fMetrics.quotaW > 0 ? fMetrics.water / fMetrics.quotaW : 0;
+                  const factCardStatus = computeQuotaStatus(
+                    { power: fMetrics.power, co2: fMetrics.co2, water: fMetrics.water },
+                    { power: fMetrics.quotaP, co2: fMetrics.quotaC, water: fMetrics.quotaW }
+                  );
+
                   return (
                     <div
                       key={factory.id}
@@ -418,7 +508,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               {factory.location}
                             </span>
                           </div>
-                          {getStatusBadge(factory.status)}
+                          {getStatusBadge(factCardStatus)}
                         </div>
 
                         {/* Telemetry Metrics */}
@@ -431,23 +521,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               </span>
                               <div className="flex items-center gap-1.5 font-mono">
                                 <span className="font-bold text-slate-800">
-                                  {formatPower(factory.totals.powerKWh)}
+                                  {formatPower(fMetrics.power)}
                                 </span>
-                                <span className="text-[10px] text-slate-400">/ 5.000 kWh</span>
+                                <span className="text-[10px] text-slate-400">
+                                  / {formatPower(fMetrics.quotaP)}
+                                </span>
                                 <span
                                   className={`text-[10px] px-1 py-0.2 rounded font-bold ${
-                                    factory.totals.powerKWh > 5000
+                                    pRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : pRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-600 bg-slate-200/60'
                                   }`}
                                 >
-                                  {Math.round((factory.totals.powerKWh / 5000) * 100)}%
+                                  {Math.round(pRatio * 100)}%
                                 </span>
                               </div>
                             </div>
                             <QuotaBar150
-                              current={factory.totals.powerKWh}
-                              max={5000}
+                              current={fMetrics.power}
+                              max={fMetrics.quotaP}
                               baseColor="bg-amber-500"
                               heightClass="h-2"
                               showScaleTicks={true}
@@ -463,23 +557,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               </span>
                               <div className="flex items-center gap-1.5 font-mono">
                                 <span className="font-bold text-slate-800">
-                                  {formatCO2(factory.totals.co2Kg)}
+                                  {formatCO2(fMetrics.co2)}
                                 </span>
-                                <span className="text-[10px] text-slate-400">/ 3.500 kg</span>
+                                <span className="text-[10px] text-slate-400">
+                                  / {formatCO2(fMetrics.quotaC)}
+                                </span>
                                 <span
                                   className={`text-[10px] px-1 py-0.2 rounded font-bold ${
-                                    factory.totals.co2Kg > 3500
+                                    cRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : cRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-600 bg-slate-200/60'
                                   }`}
                                 >
-                                  {Math.round((factory.totals.co2Kg / 3500) * 100)}%
+                                  {Math.round(cRatio * 100)}%
                                 </span>
                               </div>
                             </div>
                             <QuotaBar150
-                              current={factory.totals.co2Kg}
-                              max={3500}
+                              current={fMetrics.co2}
+                              max={fMetrics.quotaC}
                               baseColor="bg-orange-500"
                               heightClass="h-2"
                               showScaleTicks={true}
@@ -495,23 +593,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               </span>
                               <div className="flex items-center gap-1.5 font-mono">
                                 <span className="font-bold text-slate-800">
-                                  {formatWater(factory.totals.waterM3)}
+                                  {formatWater(fMetrics.water)}
                                 </span>
-                                <span className="text-[10px] text-slate-400">/ 400 m³</span>
+                                <span className="text-[10px] text-slate-400">
+                                  / {formatWater(fMetrics.quotaW)}
+                                </span>
                                 <span
                                   className={`text-[10px] px-1 py-0.2 rounded font-bold ${
-                                    factory.totals.waterM3 > 400
+                                    wRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : wRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-600 bg-slate-200/60'
                                   }`}
                                 >
-                                  {Math.round((factory.totals.waterM3 / 400) * 100)}%
+                                  {Math.round(wRatio * 100)}%
                                 </span>
                               </div>
                             </div>
                             <QuotaBar150
-                              current={factory.totals.waterM3}
-                              max={400}
+                              current={fMetrics.water}
+                              max={fMetrics.quotaW}
                               baseColor="bg-sky-500"
                               heightClass="h-2"
                               showScaleTicks={true}
@@ -554,8 +656,46 @@ export const ESGRealtimeMonitor: React.FC = () => {
           {/* ============================================================== */}
           {/* LEVEL 2: FACTORY VIEW (Workshops of the selected factory)      */}
           {/* ============================================================== */}
-          {viewLevel === 'factory' && (
+          {viewLevel === 'factory' && (() => {
+            const curFactPower =
+              scopedTotals.isClosedPeriod && timePeriod === 'q3_2026'
+                ? periodsData.q3_2026.powerKWh
+                : currentFactory.totals.powerKWh;
+            const curFactCo2 =
+              scopedTotals.isClosedPeriod && timePeriod === 'q3_2026'
+                ? periodsData.q3_2026.co2Kg
+                : currentFactory.totals.co2Kg;
+            const curFactWater =
+              scopedTotals.isClosedPeriod && timePeriod === 'q3_2026'
+                ? periodsData.q3_2026.waterM3
+                : currentFactory.totals.waterM3;
+
+            const curFactPRatio = curFactPower / 5000;
+            const curFactCRatio = curFactCo2 / 3500;
+            const curFactWRatio = curFactWater / 400;
+
+            const curFactStatus = computeQuotaStatus(
+              { power: curFactPower, co2: curFactCo2, water: curFactWater },
+              { power: 5000, co2: 3500, water: 400 }
+            );
+
+            return (
             <div className="space-y-4">
+              {/* Closed period notice banner if applicable */}
+              {scopedTotals.isClosedPeriod && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      <strong>Số liệu đã đóng sổ ({scopedTotals.periodLabel}):</strong> Toàn bộ dữ liệu đo lường đã được khóa sổ kiểm toán và đối chiếu biên bản CAPA.
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-amber-800 text-[11px] shrink-0 ml-3">
+                    {scopedTotals.dateRange}
+                  </span>
+                </div>
+              )}
+
               {/* Factory Overview Banner */}
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -578,7 +718,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                         <h3 className="text-base font-bold text-slate-800">
                           {currentFactory.name}
                         </h3>
-                        {getStatusBadge(currentFactory.status)}
+                        {getStatusBadge(curFactStatus)}
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Giám đốc: <strong>{currentFactory.director}</strong> • Địa điểm: {currentFactory.location}
@@ -609,25 +749,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                           <Zap className="w-3.5 h-3.5 text-amber-600" /> Điện tiêu thụ Nhà máy
                         </span>
                         <span className="font-mono font-bold text-slate-900 text-sm">
-                          {formatPower(currentFactory.totals.powerKWh)}
+                          {formatPower(curFactPower)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10.5px] text-amber-900/80 font-mono mt-1">
                         <span>Định mức: 5.000 kWh</span>
                         <span
                           className={`font-bold ${
-                            currentFactory.totals.powerKWh > 5000
+                            curFactPRatio >= 1.0
                               ? 'text-red-600 animate-pulse'
+                              : curFactPRatio >= 0.8
+                              ? 'text-amber-700 font-bold'
                               : 'text-amber-800'
                           }`}
                         >
-                          {Math.round((currentFactory.totals.powerKWh / 5000) * 100)}%
+                          {Math.round(curFactPRatio * 100)}%
                         </span>
                       </div>
                     </div>
                     <div className="mt-2">
                       <QuotaBar150
-                        current={currentFactory.totals.powerKWh}
+                        current={curFactPower}
                         max={5000}
                         baseColor="bg-amber-500"
                         heightClass="h-2"
@@ -644,25 +786,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                           <Flame className="w-3.5 h-3.5 text-red-600" /> Phát thải CO₂ Nhà máy
                         </span>
                         <span className="font-mono font-bold text-slate-900 text-sm">
-                          {formatCO2(currentFactory.totals.co2Kg)}
+                          {formatCO2(curFactCo2)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10.5px] text-red-900/80 font-mono mt-1">
                         <span>Định mức: 3.500 kg</span>
                         <span
                           className={`font-bold ${
-                            currentFactory.totals.co2Kg > 3500
+                            curFactCRatio >= 1.0
                               ? 'text-red-600 animate-pulse'
+                              : curFactCRatio >= 0.8
+                              ? 'text-red-700 font-bold'
                               : 'text-red-800'
                           }`}
                         >
-                          {Math.round((currentFactory.totals.co2Kg / 3500) * 100)}%
+                          {Math.round(curFactCRatio * 100)}%
                         </span>
                       </div>
                     </div>
                     <div className="mt-2">
                       <QuotaBar150
-                        current={currentFactory.totals.co2Kg}
+                        current={curFactCo2}
                         max={3500}
                         baseColor="bg-orange-500"
                         heightClass="h-2"
@@ -679,25 +823,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                           <Droplet className="w-3.5 h-3.5 text-sky-600" /> Nước xả/tái chế Nhà máy
                         </span>
                         <span className="font-mono font-bold text-slate-900 text-sm">
-                          {formatWater(currentFactory.totals.waterM3)}
+                          {formatWater(curFactWater)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10.5px] text-sky-900/80 font-mono mt-1">
                         <span>Định mức: 400 m³</span>
                         <span
                           className={`font-bold ${
-                            currentFactory.totals.waterM3 > 400
+                            curFactWRatio >= 1.0
                               ? 'text-red-600 animate-pulse'
+                              : curFactWRatio >= 0.8
+                              ? 'text-sky-700 font-bold'
                               : 'text-sky-800'
                           }`}
                         >
-                          {Math.round((currentFactory.totals.waterM3 / 400) * 100)}%
+                          {Math.round(curFactWRatio * 100)}%
                         </span>
                       </div>
                     </div>
                     <div className="mt-2">
                       <QuotaBar150
-                        current={currentFactory.totals.waterM3}
+                        current={curFactWater}
                         max={400}
                         baseColor="bg-sky-500"
                         heightClass="h-2"
@@ -725,6 +871,15 @@ export const ESGRealtimeMonitor: React.FC = () => {
               {/* Grid of Workshops */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {currentFactory.workshops.map((workshop) => {
+                  const wsLimits = { power: 2500, co2: 1800, water: 250 };
+                  const wsPRatio = workshop.totals.powerKWh / wsLimits.power;
+                  const wsCRatio = workshop.totals.co2Kg / wsLimits.co2;
+                  const wsWRatio = workshop.totals.waterM3 / wsLimits.water;
+                  const wsCardStatus = computeQuotaStatus(
+                    { power: workshop.totals.powerKWh, co2: workshop.totals.co2Kg, water: workshop.totals.waterM3 },
+                    wsLimits
+                  );
+
                   return (
                     <div
                       key={workshop.id}
@@ -751,7 +906,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               Quản đốc: <strong>{workshop.manager}</strong>
                             </span>
                           </div>
-                          {getStatusBadge(workshop.status)}
+                          {getStatusBadge(wsCardStatus)}
                         </div>
 
                         {/* Telemetry Metrics */}
@@ -769,12 +924,14 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="text-[10px] text-slate-400">/ 2.500 kWh</span>
                                 <span
                                   className={`text-[10px] font-bold px-1 rounded ${
-                                    workshop.totals.powerKWh > 2500
+                                    wsPRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : wsPRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-500 bg-slate-100'
                                   }`}
                                 >
-                                  {Math.round((workshop.totals.powerKWh / 2500) * 100)}%
+                                  {Math.round(wsPRatio * 100)}%
                                 </span>
                               </div>
                             </div>
@@ -800,12 +957,14 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="text-[10px] text-slate-400">/ 1.800 kg</span>
                                 <span
                                   className={`text-[10px] font-bold px-1 rounded ${
-                                    workshop.totals.co2Kg > 1800
+                                    wsCRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : wsCRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-500 bg-slate-100'
                                   }`}
                                 >
-                                  {Math.round((workshop.totals.co2Kg / 1800) * 100)}%
+                                  {Math.round(wsCRatio * 100)}%
                                 </span>
                               </div>
                             </div>
@@ -831,12 +990,14 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                 <span className="text-[10px] text-slate-400">/ 250 m³</span>
                                 <span
                                   className={`text-[10px] font-bold px-1 rounded ${
-                                    workshop.totals.waterM3 > 250
+                                    wsWRatio >= 1.0
                                       ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                      : wsWRatio >= 0.8
+                                      ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                       : 'text-slate-500 bg-slate-100'
                                   }`}
                                 >
-                                  {Math.round((workshop.totals.waterM3 / 250) * 100)}%
+                                  {Math.round(wsWRatio * 100)}%
                                 </span>
                               </div>
                             </div>
@@ -884,12 +1045,23 @@ export const ESGRealtimeMonitor: React.FC = () => {
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ============================================================== */}
           {/* LEVEL 3: WORKSHOP VIEW (Devices grid in the workshop)           */}
           {/* ============================================================== */}
-          {viewLevel === 'workshop' && (
+          {viewLevel === 'workshop' && (() => {
+            const curWsStatus = computeQuotaStatus(
+              {
+                power: currentWorkshop.totals.powerKWh,
+                co2: currentWorkshop.totals.co2Kg,
+                water: currentWorkshop.totals.waterM3,
+              },
+              { power: 2500, co2: 1800, water: 250 }
+            );
+
+            return (
             <div className="space-y-4">
               {/* Workshop Summary & Filter Bar */}
               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -912,7 +1084,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                       <h3 className="text-base font-bold text-slate-800">
                         {currentWorkshop.name}
                       </h3>
-                      {getStatusBadge(currentWorkshop.status)}
+                      {getStatusBadge(curWsStatus)}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Thuộc <strong>{currentFactory.name}</strong> • Quản đốc: <strong>{currentWorkshop.manager}</strong> ({displayedDevices.length} thiết bị trực tuyến)
@@ -991,13 +1163,26 @@ export const ESGRealtimeMonitor: React.FC = () => {
                     ? device.readings.water.value / device.readings.water.max
                     : 0;
 
+                  const devCardStatus = computeQuotaStatus(
+                    {
+                      power: device.readings.power?.value || 0,
+                      co2: device.readings.co2?.value || 0,
+                      water: device.readings.water?.value || 0,
+                    },
+                    {
+                      power: device.readings.power?.max || 1,
+                      co2: device.readings.co2?.max || 1,
+                      water: device.readings.water?.max || 1,
+                    }
+                  );
+
                   return (
                     <div
                       key={device.id}
                       className={`bg-white rounded-xl border p-4 shadow-2xs transition-all relative overflow-hidden flex flex-col justify-between ${
-                        device.status === 'danger'
+                        devCardStatus === 'danger'
                           ? 'border-red-300 ring-1 ring-red-400 bg-red-50/20'
-                          : device.status === 'warning'
+                          : devCardStatus === 'warning'
                           ? 'border-amber-300 ring-1 ring-amber-300 bg-amber-50/20'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
@@ -1016,7 +1201,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                               Mã TB: {device.code} • Lắp đặt: {device.installedDate}
                             </span>
                           </div>
-                          {getStatusBadge(device.status)}
+                          {getStatusBadge(devCardStatus)}
                         </div>
 
                         {/* Metric Gauges / Readings */}
@@ -1039,6 +1224,8 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                     className={`text-[10px] font-bold px-1 rounded ${
                                       pRatio >= 1.0
                                         ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : pRatio >= 0.8
+                                        ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                         : 'text-slate-500 bg-slate-100'
                                     }`}
                                   >
@@ -1074,6 +1261,8 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                     className={`text-[10px] font-bold px-1 rounded ${
                                       cRatio >= 1.0
                                         ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : cRatio >= 0.8
+                                        ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                         : 'text-slate-500 bg-slate-100'
                                     }`}
                                   >
@@ -1109,6 +1298,8 @@ export const ESGRealtimeMonitor: React.FC = () => {
                                     className={`text-[10px] font-bold px-1 rounded ${
                                       wRatio >= 1.0
                                         ? 'text-red-700 bg-red-100 animate-pulse border border-red-200'
+                                        : wRatio >= 0.8
+                                        ? 'text-amber-800 bg-amber-100 border border-amber-200'
                                         : 'text-slate-500 bg-slate-100'
                                     }`}
                                   >
@@ -1154,12 +1345,27 @@ export const ESGRealtimeMonitor: React.FC = () => {
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ============================================================== */}
           {/* LEVEL 4: DEVICE DEEP-DIVE VIEW (Telemetry detail of 1 machine) */}
           {/* ============================================================== */}
-          {viewLevel === 'device' && currentDevice && (
+          {viewLevel === 'device' && currentDevice && (() => {
+            const curDevStatus = computeQuotaStatus(
+              {
+                power: currentDevice.readings.power?.value || 0,
+                co2: currentDevice.readings.co2?.value || 0,
+                water: currentDevice.readings.water?.value || 0,
+              },
+              {
+                power: currentDevice.readings.power?.max || 1,
+                co2: currentDevice.readings.co2?.max || 1,
+                water: currentDevice.readings.water?.max || 1,
+              }
+            );
+
+            return (
             <div className="space-y-4">
               {/* Back button & Device Header Card */}
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs">
@@ -1183,7 +1389,7 @@ export const ESGRealtimeMonitor: React.FC = () => {
                         <h3 className="text-lg font-bold text-slate-800">
                           {currentDevice.name}
                         </h3>
-                        {getStatusBadge(currentDevice.status)}
+                        {getStatusBadge(curDevStatus)}
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Trực thuộc: <strong>{currentWorkshop.name}</strong> •{' '}
@@ -1522,7 +1728,8 @@ export const ESGRealtimeMonitor: React.FC = () => {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

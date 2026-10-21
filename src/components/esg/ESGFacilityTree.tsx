@@ -53,6 +53,36 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
     return <span className="w-2 h-2 rounded-full bg-emerald-500" title="Bình thường" />;
   };
 
+  const getFactoryStatus = (f: typeof factories[0]): 'normal' | 'warning' | 'danger' => {
+    const p = f.totals.powerKWh / 5000;
+    const c = f.totals.co2Kg / 3500;
+    const w = f.totals.waterM3 / 400;
+    const max = Math.max(p, c, w);
+    if (max >= 1.0) return 'danger';
+    if (max >= 0.8) return 'warning';
+    return 'normal';
+  };
+
+  const getWorkshopStatus = (w: typeof factories[0]['workshops'][0]): 'normal' | 'warning' | 'danger' => {
+    const p = w.totals.powerKWh / 2500;
+    const c = w.totals.co2Kg / 1800;
+    const wRatio = w.totals.waterM3 / 250;
+    const max = Math.max(p, c, wRatio);
+    if (max >= 1.0) return 'danger';
+    if (max >= 0.8) return 'warning';
+    return 'normal';
+  };
+
+  const getDeviceStatus = (d: typeof factories[0]['workshops'][0]['devices'][0]): 'normal' | 'warning' | 'danger' => {
+    const p = d.readings.power ? d.readings.power.value / d.readings.power.max : 0;
+    const c = d.readings.co2 ? d.readings.co2.value / d.readings.co2.max : 0;
+    const w = d.readings.water ? d.readings.water.value / d.readings.water.max : 0;
+    const max = Math.max(p, c, w);
+    if (max >= 1.0) return 'danger';
+    if (max >= 0.8) return 'warning';
+    return 'normal';
+  };
+
   // Determine allowed factories based on role
   const visibleFactories =
     role === 'bod'
@@ -137,7 +167,7 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                     <Factory className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
                     <span className="truncate">{factory.name}</span>
                   </div>
-                  {getStatusDot(factory.status)}
+                  {getStatusDot(getFactoryStatus(factory))}
                 </div>
 
                 {/* Level 2: Workshops */}
@@ -193,7 +223,7 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                                 <Layers className="w-3 h-3 text-emerald-600 flex-shrink-0" />
                                 <span className="truncate">{workshop.name}</span>
                               </div>
-                              {getStatusDot(workshop.status)}
+                              {getStatusDot(getWorkshopStatus(workshop))}
                             </div>
 
                             {/* Level 3: Devices (Shown for workshop lead or when expanded) */}
@@ -233,7 +263,7 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                                         {device.metrics.includes('water') && (
                                           <Droplet className="w-2.5 h-2.5 text-sky-500" />
                                         )}
-                                        {getStatusDot(device.status)}
+                                        {getStatusDot(getDeviceStatus(device))}
                                       </div>
                                     </div>
                                   );
