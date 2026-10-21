@@ -21,6 +21,12 @@ interface ToastNotice {
   type: 'warning' | 'danger' | 'info' | 'success';
 }
 
+interface PeriodMetrics {
+  powerKWh: number;
+  co2Kg: number;
+  waterM3: number;
+}
+
 interface ESGSimulationContextType {
   // Role & Scope
   role: UserRole;
@@ -48,7 +54,7 @@ interface ESGSimulationContextType {
   lastUpdated: Date | null;
 
   // Actions
-  triggerAnomaly: (metric: MetricType) => void;
+  triggerAnomaly: (metric: MetricType, periodTarget?: 'closed_period' | 'current_period') => void;
   resetSimulation: () => void;
   resolveAlert: (alertId: string, payload?: AlertResolutionPayload) => void;
 
@@ -62,17 +68,38 @@ interface ESGSimulationContextType {
   toast: ToastNotice | null;
   dismissToast: () => void;
 
-  // Calculated Totals based on current scope
+  // Calculated Totals based on current scope & selected closed/open period
   scopedTotals: {
     powerKWh: number;
     co2Kg: number;
     waterM3: number;
     deviceCount: number;
     alertCount: number;
+    isClosedPeriod: boolean;
+    periodLabel: string;
+    dateRange: string;
+    effectivePowerLimit: number;
+    effectiveCo2Limit: number;
+    effectiveWaterLimit: number;
   };
 }
 
 const ESGSimulationContext = createContext<ESGSimulationContextType | undefined>(undefined);
+
+const INITIAL_PERIOD_DATA: Record<string, PeriodMetrics> = {
+  // BOD:
+  h1_2026: { powerKWh: 52480, co2Kg: 30100, waterM3: 3450 }, // 6T đầu năm: ĐÃ ĐÓNG SỔ (Vượt 50k định mức)
+  h2_2026: { powerKWh: 32100, co2Kg: 21500, waterM3: 2400 }, // 6T cuối năm: KỲ HIỆN TẠI (64.2% định mức 50k)
+
+  // Quản đốc NM (Bình Dương):
+  q3_2026: { powerKWh: 5260, co2Kg: 2870, waterM3: 325 }, // Quý III: ĐÃ ĐÓNG SỔ (Vượt 5k định mức)
+  q4_2026: { powerKWh: 2450, co2Kg: 1620, waterM3: 185 }, // Quý IV: KỲ HIỆN TẠI (49% định mức 5k)
+
+  // Trưởng bộ phận (PX Chế biến):
+  m9_2026: { powerKWh: 520, co2Kg: 295, waterM3: 34 }, // Tháng 9: ĐÃ ĐÓNG SỔ (Vượt 500 định mức)
+  m10_2026: { powerKWh: 365, co2Kg: 240, waterM3: 26 }, // Tháng 10: KỲ HIỆN TẠI (73% định mức 500)
+  today: { powerKWh: 145, co2Kg: 95, waterM3: 11 }, // Ca hôm nay (72.5% định mức ca 200)
+};
 
 export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [role, setRoleState] = useState<UserRole>('bod');
@@ -83,6 +110,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('px-che-bien');
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [viewLevel, setViewLevel] = useState<RealtimeViewLevel>('enterprise');
+
+  const [periodsData, setPeriodsData] = useState<Record<string, PeriodMetrics>>(INITIAL_PERIOD_DATA);
 
   const [isLiveStreaming, setIsLiveStreaming] = useState<boolean>(true);
   const [streamInterval, setStreamInterval] = useState<number>(3000);
@@ -99,8 +128,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
     water: 'm3',
   });
 
-  // Default timePeriod according to initial role 'bod' is 'year'
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('year');
+  // Default timePeriod according to initial role 'bod' is 'year_2026'
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('year_2026');
   const [toast, setToast] = useState<ToastNotice | null>(null);
 
   const currentRoleConfig = ROLE_THRESHOLD_CONFIGS[role];
@@ -110,7 +139,7 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
     setToast({ ...notice, id });
     setTimeout(() => {
       setToast((curr) => (curr?.id === id ? null : curr));
-    }, 4500);
+    }, 5500);
   }, []);
 
   const dismissToast = useCallback(() => {
@@ -170,7 +199,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
     });
   };
 
-  // Realtime Simulation Loop
+  // Realtime Simulation Loop: Updates current open periods ONLY!
+  // Closed audit periods (h1_2026, q3_2026, m9_2026) remain STRICTLY IMMUTABLE!
   useEffect(() => {
     if (!isLiveStreaming) return;
 
@@ -214,7 +244,6 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
                 workshopWater += updatedReadings.water.value;
               }
 
-              // Determine device status
               let devStatus: 'normal' | 'warning' | 'danger' = 'normal';
               const pRatio = updatedReadings.power ? updatedReadings.power.value / updatedReadings.power.max : 0;
               const cRatio = updatedReadings.co2 ? updatedReadings.co2.value / updatedReadings.co2.max : 0;
@@ -273,136 +302,354 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
         });
       });
 
+      // Gradually accumulate small telemetry increments into CURRENT OPEN PERIODS only!
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: {
+          powerKWh: prev.h2_2026.powerKWh + Math.round(Math.random() * 2),
+          co2Kg: prev.h2_2026.co2Kg + Math.round(Math.random() * 1.5),
+          waterM3: prev.h2_2026.waterM3 + Math.round(Math.random() * 0.2 * 10) / 10,
+        },
+        q4_2026: {
+          powerKWh: prev.q4_2026.powerKWh + Math.round(Math.random() * 1),
+          co2Kg: prev.q4_2026.co2Kg + Math.round(Math.random() * 0.8),
+          waterM3: prev.q4_2026.waterM3 + Math.round(Math.random() * 0.1 * 10) / 10,
+        },
+        m10_2026: {
+          powerKWh: prev.m10_2026.powerKWh + Math.round(Math.random() * 0.5),
+          co2Kg: prev.m10_2026.co2Kg + Math.round(Math.random() * 0.4),
+          waterM3: prev.m10_2026.waterM3 + Math.round(Math.random() * 0.05 * 10) / 10,
+        },
+        today: {
+          powerKWh: prev.today.powerKWh + Math.round(Math.random() * 0.3),
+          co2Kg: prev.today.co2Kg + Math.round(Math.random() * 0.2),
+          waterM3: prev.today.waterM3 + Math.round(Math.random() * 0.02 * 10) / 10,
+        },
+      }));
+
       setLastUpdated(new Date());
     }, streamInterval);
 
     return () => clearInterval(timer);
   }, [isLiveStreaming, streamInterval, fluctuationLevel]);
 
-  // Inject Anomaly dynamically tailored to current Role and Hierarchical Threshold!
-  const triggerAnomaly = (metric: MetricType) => {
-    let affectedDevName = '';
-    let affectedWorkshopName = '';
-    let affectedFactoryName = '';
-    let alertMsg = '';
-    let valStr = '';
-    let threshStr = '';
-    let timeHorizonStr = '';
-    let excessDurationStr = '';
-    let scopeLvl: 'enterprise' | 'factory' | 'workshop' = 'workshop';
-
+  // Inject Anomaly with Rigorous Period Scoping & Historical Closed-Period Integrity!
+  const triggerAnomaly = (metric: MetricType, periodTarget: 'closed_period' | 'current_period' = 'closed_period') => {
+    const isClosedTarget = periodTarget === 'closed_period';
     const cfg = ROLE_THRESHOLD_CONFIGS[role];
 
     if (role === 'bod') {
-      // Enterprise scale anomaly (> 50.000 kWh, 6 months / 1 year horizon)
-      scopeLvl = 'enterprise';
-      timeHorizonStr = 'Đánh giá tích lũy theo 6 THÁNG';
-      excessDurationStr = 'Quá định mức liên tục 6 tháng đầu năm của toàn tập đoàn';
-      affectedFactoryName = 'Tập đoàn Vinamilk (Toàn hệ thống)';
-      affectedWorkshopName = 'Tổng hợp 3 Nhà máy';
+      if (isClosedTarget) {
+        // Anomaly belongs to 6 MONTHS FIRST HALF (01/01 - 30/06/2026) [CLOSED AUDIT PERIOD]
+        // Increases h1_2026 and year_2026. h2_2026 (current) DOES NOT CHANGE!
+        const addP = metric === 'power' ? 4500 : 0;
+        const addC = metric === 'co2' ? 3200 : 0;
+        const addW = metric === 'water' ? 380 : 0;
 
-      if (metric === 'power') {
-        const overVal = Math.round(cfg.thresholds.powerDanger * 1.08); // e.g. 54.000 kWh
-        valStr = `${overVal.toLocaleString('vi-VN')} kWh`;
-        threshStr = `${cfg.thresholds.powerDanger.toLocaleString('vi-VN')} kWh`;
-        alertMsg = `Hệ thống đo lường tự động phát hiện tổng điện năng tích lũy 6 tháng vượt định mức ${threshStr} (Đo lường: ${valStr})`;
-      } else if (metric === 'co2') {
-        const overVal = Math.round(cfg.thresholds.co2Danger * 1.09); // e.g. 38.150 kg
-        valStr = `${overVal.toLocaleString('vi-VN')} kg CO₂e`;
-        threshStr = `${cfg.thresholds.co2Danger.toLocaleString('vi-VN')} kg CO₂e`;
-        alertMsg = `Cảm biến phân tích khí thải ghi nhận tổng lượng CO₂ tích lũy vượt hạn ngạch ${threshStr} (Đo lường: ${valStr})`;
+        setPeriodsData((prev) => ({
+          ...prev,
+          h1_2026: {
+            powerKWh: prev.h1_2026.powerKWh + addP,
+            co2Kg: prev.h1_2026.co2Kg + addC,
+            waterM3: prev.h1_2026.waterM3 + addW,
+          },
+        }));
+
+        const newAlert: ESGAlert = {
+          id: `ALT-BOD-H1-${Date.now().toString().slice(-4)}`,
+          timestamp: '30/06/2026 23:59',
+          factoryName: 'Tập đoàn Vinamilk (Toàn hệ thống)',
+          workshopName: 'Kiểm toán sau đóng sổ Bán niên 1',
+          metricType: metric,
+          level: 'danger',
+          message: `Kiểm toán sau đóng sổ phát hiện bổ sung sản lượng ${metric === 'power' ? 'điện' : metric === 'co2' ? 'CO₂' : 'nước'} 6 tháng đầu năm vượt định mức chuẩn (+${addP || addC || addW} ${metric === 'power' ? 'kWh' : metric === 'co2' ? 'kg' : 'm³'}).`,
+          value: `${(52480 + addP).toLocaleString('vi-VN')} kWh`,
+          threshold: '50.000 kWh',
+          status: 'new',
+          scopeLevel: 'enterprise',
+          targetPeriod: 'h1_2026',
+          timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG',
+          excessDuration: 'Vượt định mức lũy kế 6 tháng đầu năm (01/01 - 30/06/2026)',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'ĐÃ BỔ SUNG SỰ CỐ: 6 THÁNG ĐẦU NĂM (ĐÃ ĐÓNG SỔ)',
+          message: 'Số liệu cộng dồn vào kỳ 6T đầu năm và tổng năm 2026. Kỳ hiện tại (6T cuối năm) KHÔNG BỊ ẢNH HƯỞNG.',
+          type: 'danger',
+        });
       } else {
-        const overVal = Math.round(cfg.thresholds.waterDanger * 1.12);
-        valStr = `${overVal.toLocaleString('vi-VN')} m³`;
-        threshStr = `${cfg.thresholds.waterDanger.toLocaleString('vi-VN')} m³`;
-        alertMsg = `Trạm quan trắc tự động ghi nhận lưu lượng nước xả 6 tháng vượt định mức ${threshStr} (Đo lường: ${valStr})`;
+        // Anomaly in CURRENT PERIOD (6T Cuối năm / h2_2026)
+        // Increases h2_2026 and year_2026. h1_2026 (closed) DOES NOT CHANGE!
+        const addP = metric === 'power' ? 19000 : 0;
+        const addC = metric === 'co2' ? 14000 : 0;
+        const addW = metric === 'water' ? 1700 : 0;
+
+        setPeriodsData((prev) => ({
+          ...prev,
+          h2_2026: {
+            powerKWh: prev.h2_2026.powerKWh + addP,
+            co2Kg: prev.h2_2026.co2Kg + addC,
+            waterM3: prev.h2_2026.waterM3 + addW,
+          },
+        }));
+
+        // Also bump current telemetry in factories to visually spike the realtime SCADA dials!
+        setFactories((prev) =>
+          prev.map((f, i) =>
+            i === 0
+              ? {
+                  ...f,
+                  totals: {
+                    ...f.totals,
+                    powerKWh: f.totals.powerKWh + 800,
+                    co2Kg: f.totals.co2Kg + 600,
+                  },
+                }
+              : f
+          )
+        );
+
+        const newAlert: ESGAlert = {
+          id: `ALT-BOD-H2-${Date.now().toString().slice(-4)}`,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          factoryName: 'Tập đoàn Vinamilk (Toàn hệ thống)',
+          workshopName: 'Kỳ vận hành 6 tháng cuối năm',
+          metricType: metric,
+          level: 'danger',
+          message: `Hệ thống đo lường tự động phát hiện sản lượng ${metric === 'power' ? 'điện' : metric === 'co2' ? 'CO₂' : 'nước'} kỳ 6 tháng cuối năm vượt hạn ngạch 50.000 (${(32100 + addP).toLocaleString('vi-VN')}).`,
+          value: `${(32100 + addP).toLocaleString('vi-VN')} kWh`,
+          threshold: '50.000 kWh',
+          status: 'new',
+          scopeLevel: 'enterprise',
+          targetPeriod: 'h2_2026',
+          timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG',
+          excessDuration: 'Vượt hạn ngạch lũy kế 6 tháng cuối năm',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'KÍCH HOẠT SỰ CỐ KỲ HIỆN TẠI (6T CUỐI NĂM)',
+          message: 'Thanh đo kỳ hiện tại đã vượt 100% định mức. Kỳ 6T đầu năm đã đóng sổ giữ nguyên số liệu.',
+          type: 'danger',
+        });
       }
     } else if (role === 'factory_director') {
-      // Factory scale anomaly (> 5.000 kWh, quarter horizon)
-      scopeLvl = 'factory';
-      timeHorizonStr = 'Đánh giá tích lũy theo QUÝ';
-      excessDurationStr = 'Vượt định mức lũy kế Quý III/2026';
-      const targetFact = factories.find((f) => f.id === selectedFactoryId) || factories[0];
-      affectedFactoryName = targetFact.name;
-      affectedWorkshopName = 'Toàn bộ các phân xưởng';
+      if (isClosedTarget) {
+        // Anomaly belongs to QUÝ III (01/07 - 30/09/2026) [CLOSED AUDIT PERIOD]
+        // Increases q3_2026 and year_2026. q4_2026 (current) DOES NOT CHANGE!
+        const addP = metric === 'power' ? 450 : 0;
+        const addC = metric === 'co2' ? 320 : 0;
+        const addW = metric === 'water' ? 35 : 0;
 
-      if (metric === 'power') {
-        const overVal = Math.round(cfg.thresholds.powerDanger * 1.08); // e.g. 5.400 kWh
-        valStr = `${overVal.toLocaleString('vi-VN')} kWh`;
-        threshStr = `${cfg.thresholds.powerDanger.toLocaleString('vi-VN')} kWh`;
-        alertMsg = `Hệ thống giám sát nhà máy phát hiện lượng tiêu thụ điện Quý III vượt định mức ${threshStr} (Đo lường: ${valStr})`;
-      } else if (metric === 'co2') {
-        const overVal = Math.round(cfg.thresholds.co2Danger * 1.1);
-        valStr = `${overVal.toLocaleString('vi-VN')} kg CO₂e`;
-        threshStr = `${cfg.thresholds.co2Danger.toLocaleString('vi-VN')} kg CO₂e`;
-        alertMsg = `Cảm biến khói lò hơi ghi nhận phát thải CO₂ tích lũy Quý III vượt hạn ngạch ${threshStr} (Đo lường: ${valStr})`;
+        setPeriodsData((prev) => ({
+          ...prev,
+          q3_2026: {
+            powerKWh: prev.q3_2026.powerKWh + addP,
+            co2Kg: prev.q3_2026.co2Kg + addC,
+            waterM3: prev.q3_2026.waterM3 + addW,
+          },
+        }));
+
+        const newAlert: ESGAlert = {
+          id: `ALT-FACT-Q3-${Date.now().toString().slice(-4)}`,
+          timestamp: '30/09/2026 23:59',
+          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+          workshopName: 'Kiểm toán sau đóng sổ Quý III',
+          metricType: metric,
+          level: 'danger',
+          message: `Biên bản kiểm toán phát hiện bổ sung mức tiêu thụ ${metric} Quý III vượt định mức 5.000 kWh tại Nhà máy Bình Dương (+${addP || addC || addW}).`,
+          value: `${(5260 + addP).toLocaleString('vi-VN')} kWh`,
+          threshold: '5.000 kWh',
+          status: 'new',
+          scopeLevel: 'factory',
+          targetPeriod: 'q3_2026',
+          timeHorizon: 'Đánh giá tích lũy theo QUÝ',
+          excessDuration: 'Vượt định mức lũy kế Quý III (Đã đóng sổ)',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'ĐÃ BỔ SUNG SỰ CỐ: QUÝ III/2026 (ĐÃ ĐÓNG SỔ)',
+          message: 'Số liệu cộng vào Quý III và tổng năm. Quý IV (hiện tại) KHÔNG BỊ ẢNH HƯỞNG.',
+          type: 'danger',
+        });
       } else {
-        const overVal = Math.round(cfg.thresholds.waterDanger * 1.15);
-        valStr = `${overVal.toLocaleString('vi-VN')} m³`;
-        threshStr = `${cfg.thresholds.waterDanger.toLocaleString('vi-VN')} m³`;
-        alertMsg = `Đồng hồ quan trắc nước thải ghi nhận lưu lượng xả Quý III vượt công suất trạm MBR ${threshStr} (Đo lường: ${valStr})`;
+        // Anomaly in CURRENT PERIOD (Quý IV / q4_2026)
+        const addP = metric === 'power' ? 2650 : 0;
+        const addC = metric === 'co2' ? 1900 : 0;
+        const addW = metric === 'water' ? 220 : 0;
+
+        setPeriodsData((prev) => ({
+          ...prev,
+          q4_2026: {
+            powerKWh: prev.q4_2026.powerKWh + addP,
+            co2Kg: prev.q4_2026.co2Kg + addC,
+            waterM3: prev.q4_2026.waterM3 + addW,
+          },
+        }));
+
+        // Bump factory telemetry in factories
+        setFactories((prev) =>
+          prev.map((f) =>
+            f.id === selectedFactoryId
+              ? {
+                  ...f,
+                  totals: {
+                    ...f.totals,
+                    powerKWh: f.totals.powerKWh + 450,
+                  },
+                }
+              : f
+          )
+        );
+
+        const newAlert: ESGAlert = {
+          id: `ALT-FACT-Q4-${Date.now().toString().slice(-4)}`,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+          workshopName: 'Dây chuyền vận hành Quý IV',
+          metricType: metric,
+          level: 'danger',
+          message: `Hệ thống đo lường tự động phát hiện lượng tiêu thụ ${metric} Quý IV vượt định mức 5.000 (${(2450 + addP).toLocaleString('vi-VN')}).`,
+          value: `${(2450 + addP).toLocaleString('vi-VN')} kWh`,
+          threshold: '5.000 kWh',
+          status: 'new',
+          scopeLevel: 'factory',
+          targetPeriod: 'q4_2026',
+          timeHorizon: 'Đánh giá tích lũy theo QUÝ',
+          excessDuration: 'Vượt định mức lũy kế Quý IV',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'KÍCH HOẠT SỰ CỐ QUÝ IV (KỲ HIỆN TẠI)',
+          message: 'Thanh đo Quý IV đã vượt 100% định mức. Quý III đã đóng sổ giữ nguyên.',
+          type: 'danger',
+        });
       }
     } else {
-      // Workshop scale anomaly (> 500 kWh, month horizon)
-      scopeLvl = 'workshop';
-      timeHorizonStr = 'Đánh giá tích lũy theo THÁNG';
-      excessDurationStr = 'Quá định mức bình quân tháng 10 (30 ngày)';
-      const targetFact = factories.find((f) => f.id === selectedFactoryId) || factories[0];
-      const targetWs = targetFact.workshops.find((w) => w.id === selectedWorkshopId) || targetFact.workshops[0];
-      const dev = targetWs.devices.find((d) => d.metrics.includes(metric)) || targetWs.devices[0];
+      // Workshop Lead
+      if (isClosedTarget) {
+        // Anomaly belongs to THÁNG 9/2026 [CLOSED AUDIT PERIOD]
+        const addP = metric === 'power' ? 45 : 0;
+        const addC = metric === 'co2' ? 35 : 0;
+        const addW = metric === 'water' ? 4 : 0;
 
-      affectedFactoryName = targetFact.name;
-      affectedWorkshopName = targetWs.name;
-      affectedDevName = dev.name;
+        setPeriodsData((prev) => ({
+          ...prev,
+          m9_2026: {
+            powerKWh: prev.m9_2026.powerKWh + addP,
+            co2Kg: prev.m9_2026.co2Kg + addC,
+            waterM3: prev.m9_2026.waterM3 + addW,
+          },
+        }));
 
-      if (metric === 'power') {
-        const overVal = 545; // > 500 kWh
-        valStr = `${overVal} kWh`;
-        threshStr = `500 kWh`;
-        alertMsg = `Hệ thống cảm biến IoT ghi nhận tiêu thụ điện tích lũy tháng vượt định mức ${threshStr} tại ${dev.name} (Đo lường: ${valStr})`;
-      } else if (metric === 'co2') {
-        const overVal = 385; // > 350 kg
-        valStr = `${overVal} kg CO₂e`;
-        threshStr = `350 kg CO₂e`;
-        alertMsg = `Cảm biến khí thải ghi nhận phát thải tích lũy tháng vượt định mức ${threshStr} tại ${dev.name} (Đo lường: ${valStr})`;
+        const newAlert: ESGAlert = {
+          id: `ALT-WS-M9-${Date.now().toString().slice(-4)}`,
+          timestamp: '30/09/2026 21:00',
+          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+          workshopName: 'PX Chế biến sữa tiệt trùng',
+          deviceName: 'Máy tiệt trùng UHT Aseptic #01',
+          metricType: metric,
+          level: 'danger',
+          message: `Kiểm tra chốt chỉ số công tơ tháng 9 phát hiện bổ sung tiêu thụ vượt định mức 500 kWh (+${addP || addC || addW}).`,
+          value: `${520 + addP} kWh`,
+          threshold: '500 kWh',
+          status: 'new',
+          scopeLevel: 'workshop',
+          targetPeriod: 'm9_2026',
+          timeHorizon: 'Đánh giá tích lũy theo THÁNG',
+          excessDuration: 'Quá định mức bình quân tháng 9/2026 (Đã đóng sổ)',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'ĐÃ BỔ SUNG SỰ CỐ: THÁNG 9/2026 (ĐÃ ĐÓNG SỔ)',
+          message: 'Số liệu cộng vào Tháng 9. Tháng 10 (hiện tại) KHÔNG BỊ ẢNH HƯỞNG.',
+          type: 'danger',
+        });
       } else {
-        const overVal = 46; // > 40 m3
-        valStr = `${overVal} m³`;
-        threshStr = `40 m³`;
-        alertMsg = `Cảm biến lưu lượng ghi nhận nước xả tích lũy tháng vượt hạn ngạch ${threshStr} tại ${dev.name} (Đo lường: ${valStr})`;
+        // Anomaly in CURRENT PERIOD (Tháng 10 & Hôm nay)
+        const addP = metric === 'power' ? 150 : 0;
+        const addC = metric === 'co2' ? 115 : 0;
+        const addW = metric === 'water' ? 15 : 0;
+
+        setPeriodsData((prev) => ({
+          ...prev,
+          m10_2026: {
+            powerKWh: prev.m10_2026.powerKWh + addP,
+            co2Kg: prev.m10_2026.co2Kg + addC,
+            waterM3: prev.m10_2026.waterM3 + addW,
+          },
+          today: {
+            powerKWh: prev.today.powerKWh + addP,
+            co2Kg: prev.today.co2Kg + addC,
+            waterM3: prev.today.waterM3 + addW,
+          },
+        }));
+
+        // Bump device reading in factories
+        setFactories((prev) =>
+          prev.map((f) => ({
+            ...f,
+            workshops: f.workshops.map((w) => ({
+              ...w,
+              devices: w.devices.map((d, dIdx) =>
+                dIdx === 0 && d.readings.power
+                  ? {
+                      ...d,
+                      readings: {
+                        ...d.readings,
+                        power: { ...d.readings.power, value: d.readings.power.value + 60 },
+                      },
+                      status: 'danger',
+                    }
+                  : d
+              ),
+            })),
+          }))
+        );
+
+        const newAlert: ESGAlert = {
+          id: `ALT-WS-M10-${Date.now().toString().slice(-4)}`,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+          workshopName: 'PX Chế biến sữa tiệt trùng',
+          deviceName: 'Máy tiệt trùng UHT Aseptic #01',
+          metricType: metric,
+          level: 'danger',
+          message: `Cảm biến IoT ghi nhận tiêu thụ điện tích lũy tháng 10 vượt định mức 500 kWh tại Máy UHT #01 (${365 + addP} kWh).`,
+          value: `${365 + addP} kWh`,
+          threshold: '500 kWh',
+          status: 'new',
+          scopeLevel: 'workshop',
+          targetPeriod: 'm10_2026',
+          timeHorizon: 'Đánh giá tích lũy theo THÁNG',
+          excessDuration: 'Quá định mức bình quân tháng 10',
+        };
+
+        setAlerts((prev) => [newAlert, ...prev]);
+        showToast({
+          title: 'KÍCH HOẠT SỰ CỐ THÁNG 10 (KỲ HIỆN TẠI)',
+          message: 'Thanh đo Tháng 10 đã vượt định mức. Tháng 9 đã đóng sổ giữ nguyên.',
+          type: 'danger',
+        });
       }
     }
-
-    const newAlert: ESGAlert = {
-      id: `ALT-LIVE-${Date.now().toString().slice(-4)}`,
-      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      factoryName: affectedFactoryName,
-      workshopName: affectedWorkshopName,
-      deviceName: affectedDevName,
-      metricType: metric,
-      level: 'danger',
-      message: alertMsg,
-      value: valStr,
-      threshold: threshStr,
-      status: 'new',
-      scopeLevel: scopeLvl,
-      timeHorizon: timeHorizonStr,
-      excessDuration: excessDurationStr,
-    };
-
-    setAlerts((prev) => [newAlert, ...prev]);
-    showToast({
-      title: `CẢNH BÁO ${cfg.roleLabel.toUpperCase()}!`,
-      message: `${timeHorizonStr}: ${alertMsg}`,
-      type: 'danger',
-    });
   };
 
+  // Resolve Alert:
+  // Strictly preserves historical consumption (Never alters past records!).
+  // Establishes a CAPA resolution and prevents future overflow.
   const resolveAlert = (alertId: string, payload?: AlertResolutionPayload) => {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('vi-VN');
-    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const nowFull = `${timeStr} ${dateStr}`;
+    const nowFull = new Date().toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
     setAlerts((prev) =>
       prev.map((a) => {
@@ -410,8 +657,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
         return {
           ...a,
           status: 'resolved' as const,
-          rootCause: payload?.rootCause || 'Đã kiểm tra kỹ thuật tại hiện trường và điều chỉnh phụ tải.',
-          resolution: payload?.resolution || 'Đã khắc phục hoàn tất và đưa thiết bị về chế độ tiết kiệm năng lượng.',
+          rootCause: payload?.rootCause || 'Đã kiểm tra kỹ thuật tại hiện trường, lập biên bản xác định nguyên nhân tổn thất điện năng.',
+          resolution: payload?.resolution || 'Đã ban hành quy chuẩn vận hành mới và điều tiết phụ tải để đảm bảo không tái diễn trong tương lai.',
           resolvedBy:
             payload?.resolvedBy ||
             (role === 'bod'
@@ -433,9 +680,36 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
         };
       })
     );
+
+    // Future Safeguard: Stabilize current instantaneous device readings to nominal rating
+    // so future telemetry won't runaway, while historical cumulative totals remain 100% UNCHANGED.
+    setFactories((prev) =>
+      prev.map((f) => ({
+        ...f,
+        workshops: f.workshops.map((w) => ({
+          ...w,
+          devices: w.devices.map((d) => {
+            if (d.status === 'danger') {
+              return {
+                ...d,
+                status: 'normal',
+                readings: {
+                  ...d.readings,
+                  power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.72) } : undefined,
+                  co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.72) } : undefined,
+                  water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.72) } : undefined,
+                },
+              };
+            }
+            return d;
+          }),
+        })),
+      }))
+    );
+
     showToast({
-      title: 'Đã hoàn tất lập biên bản xử lý',
-      message: `Hồ sơ sự cố ${alertId} đã được phê duyệt nguyên nhân và phương án khắc phục.`,
+      title: 'Đã hoàn tất phê duyệt giải pháp khắc phục',
+      message: 'Biên bản xử lý đã được lưu. Dữ liệu lịch sử giữ nguyên theo chuẩn kiểm toán, phương án kiểm soát mới đã được kích hoạt cho tương lai.',
       type: 'success',
     });
   };
@@ -443,9 +717,10 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   const resetSimulation = () => {
     setFactories(INITIAL_VINAMILK_DATA);
     setAlerts(INITIAL_ALERTS);
+    setPeriodsData(INITIAL_PERIOD_DATA);
     showToast({
       title: 'Thiết lập lại mô phỏng',
-      message: 'Toàn bộ chỉ số năng lượng & phát thải đã được hoàn trả về thông số ban đầu.',
+      message: 'Toàn bộ chỉ số năng lượng & phát thải các kỳ đã được hoàn trả về thông số ban đầu.',
       type: 'info',
     });
   };
@@ -453,50 +728,151 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   // Filter alerts by role scope
   const getRoleFilteredAlerts = () => {
     if (role === 'bod') {
-      // BOD sees enterprise and factory level alerts
       return alerts.filter((a) => a.scopeLevel === 'enterprise' || a.scopeLevel === 'factory');
     }
     if (role === 'factory_director') {
-      // Factory director sees factory level alerts and workshop alerts for this factory
       return alerts.filter(
         (a) => a.scopeLevel === 'factory' || (a.scopeLevel === 'workshop' && a.factoryName.includes('Bình Dương'))
       );
     }
-    // Workshop lead sees workshop level alerts
     return alerts.filter((a) => a.scopeLevel === 'workshop');
   };
 
-  // Compute Scoped Totals based on Current Role
+  // Compute Scoped Totals strictly aligned with the selected Time Period & Role Audit Boundaries!
   const calculateScopedTotals = () => {
     let powerKWh = 0;
     let co2Kg = 0;
     let waterM3 = 0;
     let deviceCount = 0;
+    let isClosedPeriod = false;
+    let periodLabel = '';
+    let dateRange = '';
+    let effectivePowerLimit = currentRoleConfig.thresholds.powerDanger;
+    let effectiveCo2Limit = currentRoleConfig.thresholds.co2Danger;
+    let effectiveWaterLimit = currentRoleConfig.thresholds.waterDanger;
 
+    // Count devices
     if (role === 'bod') {
-      factories.forEach((f) => {
-        powerKWh += f.totals.powerKWh;
-        co2Kg += f.totals.co2Kg;
-        waterM3 += f.totals.waterM3;
-        f.workshops.forEach((w) => {
-          deviceCount += w.devices.length;
-        });
-      });
+      factories.forEach((f) => f.workshops.forEach((w) => (deviceCount += w.devices.length)));
     } else if (role === 'factory_director') {
       const targetFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
-      powerKWh = targetFactory.totals.powerKWh;
-      co2Kg = targetFactory.totals.co2Kg;
-      waterM3 = targetFactory.totals.waterM3;
-      targetFactory.workshops.forEach((w) => {
-        deviceCount += w.devices.length;
-      });
+      targetFactory.workshops.forEach((w) => (deviceCount += w.devices.length));
     } else {
       const targetFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
       const targetWorkshop = targetFactory.workshops.find((w) => w.id === selectedWorkshopId) || targetFactory.workshops[0];
-      powerKWh = targetWorkshop.totals.powerKWh;
-      co2Kg = targetWorkshop.totals.co2Kg;
-      waterM3 = targetWorkshop.totals.waterM3;
       deviceCount = targetWorkshop.devices.length;
+    }
+
+    if (role === 'bod') {
+      if (timePeriod === 'h1_2026') {
+        powerKWh = periodsData.h1_2026.powerKWh;
+        co2Kg = periodsData.h1_2026.co2Kg;
+        waterM3 = periodsData.h1_2026.waterM3;
+        isClosedPeriod = true;
+        periodLabel = '6 Tháng Đầu Năm 2026 [ĐÃ ĐÓNG SỔ KIỂM TOÁN]';
+        dateRange = '01/01/2026 - 30/06/2026';
+        effectivePowerLimit = 50000;
+        effectiveCo2Limit = 35000;
+        effectiveWaterLimit = 4000;
+      } else if (timePeriod === 'h2_2026') {
+        powerKWh = periodsData.h2_2026.powerKWh;
+        co2Kg = periodsData.h2_2026.co2Kg;
+        waterM3 = periodsData.h2_2026.waterM3;
+        isClosedPeriod = false;
+        periodLabel = '6 Tháng Cuối Năm 2026 [KỲ HIỆN TẠI - ĐANG VẬN HÀNH LIVE]';
+        dateRange = '01/07/2026 - 31/12/2026';
+        effectivePowerLimit = 50000;
+        effectiveCo2Limit = 35000;
+        effectiveWaterLimit = 4000;
+      } else if (timePeriod === '3years') {
+        powerKWh = 615000;
+        co2Kg = 391500;
+        waterM3 = 44900;
+        isClosedPeriod = true;
+        periodLabel = 'Giai đoạn 3 Năm (2024 - 2026)';
+        dateRange = '2024 - 2026';
+        effectivePowerLimit = 600000;
+        effectiveCo2Limit = 380000;
+        effectiveWaterLimit = 45000;
+      } else {
+        // year_2026 or default year: Sum of H1 (closed) + H2 (open live)
+        powerKWh = periodsData.h1_2026.powerKWh + periodsData.h2_2026.powerKWh;
+        co2Kg = periodsData.h1_2026.co2Kg + periodsData.h2_2026.co2Kg;
+        waterM3 = periodsData.h1_2026.waterM3 + periodsData.h2_2026.waterM3;
+        isClosedPeriod = false;
+        periodLabel = 'Toàn Năm 2026 (Lũy kế 6T đầu + 6T cuối)';
+        dateRange = '01/01/2026 - 31/12/2026';
+        effectivePowerLimit = 100000;
+        effectiveCo2Limit = 70000;
+        effectiveWaterLimit = 8000;
+      }
+    } else if (role === 'factory_director') {
+      if (timePeriod === 'q3_2026') {
+        powerKWh = periodsData.q3_2026.powerKWh;
+        co2Kg = periodsData.q3_2026.co2Kg;
+        waterM3 = periodsData.q3_2026.waterM3;
+        isClosedPeriod = true;
+        periodLabel = 'Quý III/2026 [ĐÃ ĐÓNG SỔ KIỂM SOÁT QUÝ]';
+        dateRange = '01/07/2026 - 30/09/2026';
+        effectivePowerLimit = 5000;
+        effectiveCo2Limit = 3500;
+        effectiveWaterLimit = 400;
+      } else if (timePeriod === 'q4_2026') {
+        powerKWh = periodsData.q4_2026.powerKWh;
+        co2Kg = periodsData.q4_2026.co2Kg;
+        waterM3 = periodsData.q4_2026.waterM3;
+        isClosedPeriod = false;
+        periodLabel = 'Quý IV/2026 [KỲ HIỆN TẠI - ĐANG VẬN HÀNH LIVE]';
+        dateRange = '01/10/2026 - 31/12/2026';
+        effectivePowerLimit = 5000;
+        effectiveCo2Limit = 3500;
+        effectiveWaterLimit = 400;
+      } else {
+        // year_2026 for Factory Director: Q1 + Q2 + Q3 (closed) + Q4 (open live)
+        powerKWh = 4800 + 4950 + periodsData.q3_2026.powerKWh + periodsData.q4_2026.powerKWh;
+        co2Kg = 2600 + 2700 + periodsData.q3_2026.co2Kg + periodsData.q4_2026.co2Kg;
+        waterM3 = 310 + 320 + periodsData.q3_2026.waterM3 + periodsData.q4_2026.waterM3;
+        isClosedPeriod = false;
+        periodLabel = 'Lũy kế Cả Năm 2026 (Q1 + Q2 + Q3 + Q4)';
+        dateRange = '01/01/2026 - 31/12/2026';
+        effectivePowerLimit = 20000;
+        effectiveCo2Limit = 14000;
+        effectiveWaterLimit = 1600;
+      }
+    } else {
+      // Workshop Lead
+      if (timePeriod === 'm9_2026') {
+        powerKWh = periodsData.m9_2026.powerKWh;
+        co2Kg = periodsData.m9_2026.co2Kg;
+        waterM3 = periodsData.m9_2026.waterM3;
+        isClosedPeriod = true;
+        periodLabel = 'Tháng 9/2026 [ĐÃ ĐÓNG SỔ KIỂM SOÁT THÁNG]';
+        dateRange = '01/09/2026 - 30/09/2026';
+        effectivePowerLimit = 500;
+        effectiveCo2Limit = 350;
+        effectiveWaterLimit = 40;
+      } else if (timePeriod === 'today') {
+        powerKWh = periodsData.today.powerKWh;
+        co2Kg = periodsData.today.co2Kg;
+        waterM3 = periodsData.today.waterM3;
+        isClosedPeriod = false;
+        periodLabel = 'Ca vận hành hôm nay [THỜI GIAN THỰC]';
+        dateRange = '21/10/2026';
+        effectivePowerLimit = 200;
+        effectiveCo2Limit = 140;
+        effectiveWaterLimit = 16;
+      } else {
+        // m10_2026 (or default month)
+        powerKWh = periodsData.m10_2026.powerKWh;
+        co2Kg = periodsData.m10_2026.co2Kg;
+        waterM3 = periodsData.m10_2026.waterM3;
+        isClosedPeriod = false;
+        periodLabel = 'Tháng 10/2026 [KỲ HIỆN TẠI - ĐANG VẬN HÀNH LIVE]';
+        dateRange = '01/10/2026 - 31/10/2026';
+        effectivePowerLimit = 500;
+        effectiveCo2Limit = 350;
+        effectiveWaterLimit = 40;
+      }
     }
 
     const roleAlerts = getRoleFilteredAlerts();
@@ -508,6 +884,12 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
       waterM3,
       deviceCount,
       alertCount: activeAlerts.length,
+      isClosedPeriod,
+      periodLabel,
+      dateRange,
+      effectivePowerLimit,
+      effectiveCo2Limit,
+      effectiveWaterLimit,
     };
   };
 

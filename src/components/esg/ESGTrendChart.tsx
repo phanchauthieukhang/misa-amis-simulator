@@ -17,15 +17,24 @@ export const ESGTrendChart: React.FC = () => {
   const getPeriodDescription = () => {
     switch (timePeriod) {
       case 'today':
-        return 'Diễn biến các ca trong ngày hôm nay (Cấp bộ phận)';
-      case 'week':
-        return 'Diễn biến các ngày trong tuần (Cấp bộ phận)';
+        return 'Diễn biến các ca trong ngày hôm nay (Thời gian thực - Giám sát IoT)';
+      case 'm9_2026':
+        return 'Diễn biến các tuần trong Tháng 9/2026 [Đã đóng sổ kiểm soát tháng]';
+      case 'm10_2026':
       case 'month':
-        return 'Diễn biến các tuần trong tháng (Chu kỳ đánh giá bộ phận)';
+        return 'Diễn biến các tuần trong Tháng 10/2026 [Kỳ hiện tại - Đang vận hành live]';
+      case 'q3_2026':
+        return 'Diễn biến các tháng trong Quý III/2026 [Đã đóng sổ kiểm soát quý]';
+      case 'q4_2026':
       case 'quarter':
-        return 'Diễn biến các tháng trong quý (Chu kỳ đánh giá nhà máy)';
+        return 'Diễn biến các tháng trong Quý IV/2026 [Kỳ hiện tại - Đang vận hành live]';
+      case 'h1_2026':
+        return 'Diễn biến 6 tháng đầu năm 2026 (01/01 - 30/06) [Đã đóng sổ kiểm toán bán niên]';
+      case 'h2_2026':
+        return 'Diễn biến 6 tháng cuối năm 2026 (01/07 - 31/12) [Kỳ hiện tại - Đang vận hành live]';
+      case 'year_2026':
       case 'year':
-        return 'Diễn biến các quý trong năm 2026 (Kiểm toán năm)';
+        return 'Lũy kế 4 Quý năm 2026 (Q1 + Q2 đã chốt, Q3 đã chốt, Q4 đang live)';
       case '3years':
         return 'Lũy kế 3 năm liên tiếp 2024 - 2026 (Chiến lược Ban Giám đốc)';
       case '5years':
@@ -33,7 +42,7 @@ export const ESGTrendChart: React.FC = () => {
       case '10years':
         return 'Chiến lược 10 năm chuyển đổi Net Zero 2021 - 2030 (Toàn tập đoàn)';
       default:
-        return 'Theo dõi diễn biến theo thời gian thực phân bổ theo các chu kỳ';
+        return 'Theo dõi diễn biến theo chu kỳ kiểm soát thẩm quyền';
     }
   };
 

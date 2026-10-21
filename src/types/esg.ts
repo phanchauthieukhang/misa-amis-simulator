@@ -108,6 +108,7 @@ export interface ESGAlert {
   scopeLevel: 'enterprise' | 'factory' | 'workshop';
   timeHorizon: string; // e.g. "Đánh giá tích lũy theo Tháng", "Đánh giá tích lũy theo Quý", "Đánh giá tích lũy 6 Tháng - Năm"
   excessDuration: string; // e.g. "Vượt quá định mức bình quân tháng", "Vượt quá hạn ngạch quý III"
+  targetPeriod?: TimePeriod; // Kỳ kiểm soát gắn liền với sự cố (VD: 'h1_2026', 'q3_2026', 'm9_2026', 'h2_2026', 'm10_2026')
   rootCause?: string; // Nguyên nhân sự cố xác định qua điều tra
   resolution?: string; // Biện pháp & hướng giải quyết đã phê duyệt
   meetingMinute?: IncidentMeetingMinute; // Biên bản cuộc họp đính kèm
@@ -122,7 +123,16 @@ export interface UnitPreferences {
 }
 
 export type TimePeriod =
-  | 'today'
+  // Kỳ kiểm soát đóng sổ & hiện tại theo vai trò
+  | 'year_2026' // Cả năm 2026 (Lũy kế toàn bộ)
+  | 'h1_2026' // 6 tháng đầu năm (01/01 - 30/06/2026) [Đã đóng sổ kiểm toán]
+  | 'h2_2026' // 6 tháng cuối năm (01/07 - 31/12/2026) [Kỳ hiện tại]
+  | 'q3_2026' // Quý III/2026 (01/07 - 30/09/2026) [Đã đóng sổ kiểm toán quý]
+  | 'q4_2026' // Quý IV/2026 (01/10 - 31/12/2026) [Kỳ hiện tại]
+  | 'm9_2026' // Tháng 9/2026 (01/09 - 30/09/2026) [Đã đóng sổ tháng]
+  | 'm10_2026' // Tháng 10/2026 (01/10 - 31/10/2026) [Kỳ hiện tại]
+  | 'today' // Ca vận hành hôm nay [Thời gian thực]
+  // Các chu kỳ cũ / chiến lược
   | 'week'
   | 'month'
   | 'quarter'
@@ -131,12 +141,21 @@ export type TimePeriod =
   | '5years'
   | '10years';
 
+export interface PeriodOption {
+  value: TimePeriod;
+  label: string;
+  isClosed: boolean;
+  periodLabel: string;
+  dateRange: string;
+  quotaMultiplier?: number;
+}
+
 export interface RoleThresholdConfig {
   role: UserRole;
   roleLabel: string;
   scopeLabel: string;
   evalPeriodLabel: string;
-  allowedPeriods: { value: TimePeriod; label: string }[];
+  allowedPeriods: PeriodOption[];
   defaultPeriod: TimePeriod;
   thresholds: {
     powerWarning: number;

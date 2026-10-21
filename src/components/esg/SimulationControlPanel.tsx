@@ -16,6 +16,9 @@ import {
   Building,
   Factory,
   Radio,
+  Lock,
+  History,
+  Clock,
 } from 'lucide-react';
 import { UserRole } from '@/types/esg';
 
@@ -42,6 +45,7 @@ export const SimulationControlPanel: React.FC = () => {
   } = useESGSimulation();
 
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
+  const [anomalyTarget, setAnomalyTarget] = useState<'closed_period' | 'current_period'>('closed_period');
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2 pt-0 pointer-events-none">
@@ -256,76 +260,149 @@ export const SimulationControlPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Column 3: Anomaly Triggers (3 cols) Scaled to Role */}
+            {/* Column 3: Anomaly Triggers (3 cols) Scaled to Role & Closed/Open Periods */}
             <div className="lg:col-span-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  Kích hoạt sự cố theo cấp:
+                  Kích hoạt sự cố kiểm soát:
                 </span>
                 <span className="text-[10px] text-amber-300/80 font-mono">
-                  {role === 'bod' ? '6T / Năm' : role === 'factory_director' ? 'Quý' : 'Tháng'}
+                  {role === 'bod' ? 'Bán niên' : role === 'factory_director' ? 'Quý' : 'Tháng'}
                 </span>
               </div>
 
+              {/* Target Period Selector Tabs */}
+              <div className="flex bg-slate-800 p-0.5 rounded-lg text-[10.5px] border border-slate-700">
+                <button
+                  onClick={() => setAnomalyTarget('closed_period')}
+                  className={`flex-1 py-1 rounded font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    anomalyTarget === 'closed_period'
+                      ? 'bg-amber-600/90 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Sự cố phát hiện qua kiểm toán kỳ trước (Đã đóng sổ). Số liệu cộng vào quá khứ và năm, không làm tăng kỳ hiện tại."
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Kỳ đã đóng sổ</span>
+                </button>
+                <button
+                  onClick={() => setAnomalyTarget('current_period')}
+                  className={`flex-1 py-1 rounded font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    anomalyTarget === 'current_period'
+                      ? 'bg-red-600/90 text-white font-bold shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Sự cố phát sinh trong kỳ hiện tại. Làm thanh đo live vượt ngưỡng 100% bừng đỏ."
+                >
+                  <Radio className="w-2.5 h-2.5" />
+                  <span>Kỳ hiện tại (Live)</span>
+                </button>
+              </div>
+
+              {/* Explanation Note */}
+              <div className="text-[9.5px] text-slate-400 leading-tight">
+                {anomalyTarget === 'closed_period' ? (
+                  <span className="text-amber-300/90">
+                    {role === 'bod' && 'Sự cố 6T đầu năm: Cộng vào 6T đầu & Tổng năm. 6T cuối năm giữ nguyên.'}
+                    {role === 'factory_director' && 'Sự cố Quý III: Cộng vào Quý III & Tổng năm. Quý IV giữ nguyên.'}
+                    {role === 'workshop_lead' && 'Sự cố Tháng 9: Cộng vào Tháng 9 & Quý III. Tháng 10 giữ nguyên.'}
+                  </span>
+                ) : (
+                  <span className="text-red-300/90">
+                    {role === 'bod' && 'Sự cố 6T cuối năm: Nhảy vọt thanh đo live > 100%. 6T đầu năm giữ nguyên.'}
+                    {role === 'factory_director' && 'Sự cố Quý IV: Nhảy vọt thanh đo live > 100%. Quý III giữ nguyên.'}
+                    {role === 'workshop_lead' && 'Sự cố Tháng 10: Nhảy vọt thanh đo live > 100%. Tháng 9 giữ nguyên.'}
+                  </span>
+                )}
+              </div>
+
+              {/* Trigger Buttons */}
               <div className="flex flex-col gap-1.5">
                 <button
-                  onClick={() => triggerAnomaly('power')}
-                  className="flex items-center justify-between px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900 border border-amber-700/60 rounded text-amber-200 text-[11px] transition-colors font-medium text-left cursor-pointer"
-                  title={`Kích hoạt sự cố điện vượt ngưỡng ${currentRoleConfig.thresholds.powerDanger.toLocaleString('vi-VN')} ${currentRoleConfig.thresholds.powerUnit}`}
+                  onClick={() => triggerAnomaly('power', anomalyTarget)}
+                  className={`flex items-center justify-between px-2.5 py-1.5 border rounded text-[11px] transition-colors font-medium text-left cursor-pointer ${
+                    anomalyTarget === 'closed_period'
+                      ? 'bg-amber-950/70 hover:bg-amber-900 border-amber-700/60 text-amber-200'
+                      : 'bg-red-950/70 hover:bg-red-900 border-red-700/60 text-red-200'
+                  }`}
                 >
                   <span className="flex items-center gap-1.5 truncate">
                     <Zap className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                     <span>
-                      {role === 'bod'
-                        ? 'Điện: +54.000 kW (108%)'
+                      {anomalyTarget === 'closed_period'
+                        ? role === 'bod'
+                          ? 'Điện: +4.500 kWh (6T Đầu)'
+                          : role === 'factory_director'
+                          ? 'Điện: +450 kWh (Quý III)'
+                          : 'Điện: +45 kWh (Tháng 9)'
+                        : role === 'bod'
+                        ? 'Điện: +19.000 kWh (6T Cuối)'
                         : role === 'factory_director'
-                        ? 'Điện: +5.400 kW (108%)'
-                        : 'Điện: +545 kW (109%)'}
+                        ? 'Điện: +2.650 kWh (Quý IV)'
+                        : 'Điện: +150 kWh (Tháng 10)'}
                     </span>
                   </span>
                   <span className="text-[9.5px] opacity-75 font-mono ml-1">
-                    {role === 'bod' ? '6T' : role === 'factory_director' ? 'Quý' : 'Tháng'}
+                    {anomalyTarget === 'closed_period' ? 'Đóng sổ' : 'Live'}
                   </span>
                 </button>
 
                 <button
-                  onClick={() => triggerAnomaly('co2')}
-                  className="flex items-center justify-between px-2.5 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-700/60 rounded text-red-200 text-[11px] transition-colors font-medium text-left cursor-pointer"
-                  title={`Kích hoạt sự cố CO2 vượt hạn ngạch ${currentRoleConfig.thresholds.co2Danger.toLocaleString('vi-VN')} ${currentRoleConfig.thresholds.co2Unit}`}
+                  onClick={() => triggerAnomaly('co2', anomalyTarget)}
+                  className={`flex items-center justify-between px-2.5 py-1.5 border rounded text-[11px] transition-colors font-medium text-left cursor-pointer ${
+                    anomalyTarget === 'closed_period'
+                      ? 'bg-amber-950/70 hover:bg-amber-900 border-amber-700/60 text-amber-200'
+                      : 'bg-red-950/70 hover:bg-red-900 border-red-700/60 text-red-200'
+                  }`}
                 >
                   <span className="flex items-center gap-1.5 truncate">
                     <Flame className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                     <span>
-                      {role === 'bod'
-                        ? 'CO₂: +38.000 kg (108%)'
+                      {anomalyTarget === 'closed_period'
+                        ? role === 'bod'
+                          ? 'CO₂: +3.200 kg (6T Đầu)'
+                          : role === 'factory_director'
+                          ? 'CO₂: +320 kg (Quý III)'
+                          : 'CO₂: +35 kg (Tháng 9)'
+                        : role === 'bod'
+                        ? 'CO₂: +14.000 kg (6T Cuối)'
                         : role === 'factory_director'
-                        ? 'CO₂: +3.800 kg (108%)'
-                        : 'CO₂: +380 kg (108%)'}
+                        ? 'CO₂: +1.900 kg (Quý IV)'
+                        : 'CO₂: +115 kg (Tháng 10)'}
                     </span>
                   </span>
                   <span className="text-[9.5px] opacity-75 font-mono ml-1">
-                    {role === 'bod' ? 'Năm' : role === 'factory_director' ? 'Quý' : 'Tháng'}
+                    {anomalyTarget === 'closed_period' ? 'Đóng sổ' : 'Live'}
                   </span>
                 </button>
 
                 <button
-                  onClick={() => triggerAnomaly('water')}
-                  className="flex items-center justify-between px-2.5 py-1.5 bg-sky-950/70 hover:bg-sky-900 border border-sky-700/60 rounded text-sky-200 text-[11px] transition-colors font-medium text-left cursor-pointer"
-                  title={`Kích hoạt sự cố nước thải vượt định mức ${currentRoleConfig.thresholds.waterDanger.toLocaleString('vi-VN')} ${currentRoleConfig.thresholds.waterUnit}`}
+                  onClick={() => triggerAnomaly('water', anomalyTarget)}
+                  className={`flex items-center justify-between px-2.5 py-1.5 border rounded text-[11px] transition-colors font-medium text-left cursor-pointer ${
+                    anomalyTarget === 'closed_period'
+                      ? 'bg-amber-950/70 hover:bg-amber-900 border-amber-700/60 text-amber-200'
+                      : 'bg-sky-950/70 hover:bg-sky-900 border-sky-700/60 text-sky-200'
+                  }`}
                 >
                   <span className="flex items-center gap-1.5 truncate">
                     <Droplet className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
                     <span>
-                      {role === 'bod'
-                        ? 'Nước: +4.300 m³ (107%)'
+                      {anomalyTarget === 'closed_period'
+                        ? role === 'bod'
+                          ? 'Nước: +380 m³ (6T Đầu)'
+                          : role === 'factory_director'
+                          ? 'Nước: +35 m³ (Quý III)'
+                          : 'Nước: +4 m³ (Tháng 9)'
+                        : role === 'bod'
+                        ? 'Nước: +1.700 m³ (6T Cuối)'
                         : role === 'factory_director'
-                        ? 'Nước: +430 m³ (107%)'
-                        : 'Nước: +45 m³ (112%)'}
+                        ? 'Nước: +220 m³ (Quý IV)'
+                        : 'Nước: +15 m³ (Tháng 10)'}
                     </span>
                   </span>
                   <span className="text-[9.5px] opacity-75 font-mono ml-1">
-                    {role === 'bod' ? '6T' : role === 'factory_director' ? 'Quý' : 'Tháng'}
+                    {anomalyTarget === 'closed_period' ? 'Đóng sổ' : 'Live'}
                   </span>
                 </button>
               </div>

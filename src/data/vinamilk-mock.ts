@@ -665,11 +665,32 @@ export const ROLE_THRESHOLD_CONFIGS: Record<UserRole, RoleThresholdConfig> = {
     scopeLabel: 'Cấp Phân xưởng & Thiết bị',
     evalPeriodLabel: 'Đánh giá tích lũy theo THÁNG',
     allowedPeriods: [
-      { value: 'today', label: 'Hôm nay (Ca vận hành)' },
-      { value: 'week', label: 'Tuần này' },
-      { value: 'month', label: 'Tháng này (Chu kỳ đánh giá)' },
+      {
+        value: 'm10_2026',
+        label: 'Tháng 10/2026 (Kỳ hiện tại - Đang vận hành live)',
+        isClosed: false,
+        periodLabel: 'Tháng 10/2026',
+        dateRange: '01/10/2026 - 31/10/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: 'm9_2026',
+        label: 'Tháng 9/2026 (Đã đóng sổ kiểm soát)',
+        isClosed: true,
+        periodLabel: 'Tháng 9/2026',
+        dateRange: '01/09/2026 - 30/09/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: 'today',
+        label: 'Ca vận hành hôm nay (Thời gian thực)',
+        isClosed: false,
+        periodLabel: 'Ca hôm nay',
+        dateRange: '21/10/2026',
+        quotaMultiplier: 0.4,
+      },
     ],
-    defaultPeriod: 'month',
+    defaultPeriod: 'm10_2026',
     thresholds: {
       powerWarning: 400,
       powerDanger: 500, // Vượt 500 kW/h theo yêu cầu người dùng
@@ -690,11 +711,32 @@ export const ROLE_THRESHOLD_CONFIGS: Record<UserRole, RoleThresholdConfig> = {
     scopeLabel: 'Cấp Nhà máy sản xuất',
     evalPeriodLabel: 'Đánh giá tích lũy theo QUÝ',
     allowedPeriods: [
-      { value: 'month', label: 'Tháng này' },
-      { value: 'quarter', label: 'Quý này (Chu kỳ đánh giá)' },
-      { value: 'year', label: 'Năm nay' },
+      {
+        value: 'q4_2026',
+        label: 'Quý IV/2026 (Kỳ hiện tại - Đang vận hành live)',
+        isClosed: false,
+        periodLabel: 'Quý IV/2026',
+        dateRange: '01/10/2026 - 31/12/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: 'q3_2026',
+        label: 'Quý III/2026 (Đã đóng sổ kiểm soát quý)',
+        isClosed: true,
+        periodLabel: 'Quý III/2026',
+        dateRange: '01/07/2026 - 30/09/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: 'year_2026',
+        label: 'Lũy kế Cả Năm 2026 (Q1 + Q2 + Q3 + Q4)',
+        isClosed: false,
+        periodLabel: 'Năm 2026',
+        dateRange: '01/01/2026 - 31/12/2026',
+        quotaMultiplier: 4.0,
+      },
     ],
-    defaultPeriod: 'quarter',
+    defaultPeriod: 'q4_2026',
     thresholds: {
       powerWarning: 4000,
       powerDanger: 5000, // Vượt 5000 kW theo yêu cầu người dùng
@@ -715,13 +757,40 @@ export const ROLE_THRESHOLD_CONFIGS: Record<UserRole, RoleThresholdConfig> = {
     scopeLabel: 'Cấp Toàn Doanh nghiệp (3 Nhà máy Vinamilk)',
     evalPeriodLabel: 'Đánh giá tích lũy theo 6 THÁNG / 1 NĂM',
     allowedPeriods: [
-      { value: 'quarter', label: 'Quý này' },
-      { value: 'year', label: 'Năm 2026 (Chu kỳ kiểm toán)' },
-      { value: '3years', label: 'Lũy kế 3 Năm (2024 - 2026)' },
-      { value: '5years', label: 'Kế hoạch 5 Năm (2021 - 2025)' },
-      { value: '10years', label: 'Lộ trình 10 Năm (Net Zero 2021 - 2030)' },
+      {
+        value: 'year_2026',
+        label: 'Toàn Năm 2026 (Lũy kế 6T đầu + 6T cuối)',
+        isClosed: false,
+        periodLabel: 'Năm 2026',
+        dateRange: '01/01/2026 - 31/12/2026',
+        quotaMultiplier: 2.0,
+      },
+      {
+        value: 'h1_2026',
+        label: '6 Tháng đầu năm (T1 - T6) [Đã đóng sổ kiểm toán]',
+        isClosed: true,
+        periodLabel: '6T Đầu Năm 2026',
+        dateRange: '01/01/2026 - 30/06/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: 'h2_2026',
+        label: '6 Tháng cuối năm (T7 - T12) [Kỳ hiện tại live]',
+        isClosed: false,
+        periodLabel: '6T Cuối Năm 2026',
+        dateRange: '01/07/2026 - 31/12/2026',
+        quotaMultiplier: 1.0,
+      },
+      {
+        value: '3years',
+        label: 'Chiến lược 3 Năm (2024 - 2026)',
+        isClosed: true,
+        periodLabel: 'Giai đoạn 2024 - 2026',
+        dateRange: '2024 - 2026',
+        quotaMultiplier: 6.0,
+      },
     ],
-    defaultPeriod: 'year',
+    defaultPeriod: 'year_2026',
     thresholds: {
       powerWarning: 40000,
       powerDanger: 50000, // Vượt 50.000 kW (50 MWh) cấp doanh nghiệp
@@ -742,18 +811,19 @@ export const INITIAL_ALERTS: ESGAlert[] = [
   // Cảnh báo Cấp Doanh nghiệp (BOD) - Ngưỡng 50.000 kWh, chu kỳ 6 tháng / năm
   {
     id: 'ALT-BOD-2026-01',
-    timestamp: '19/10/2026 20:00',
+    timestamp: '30/06/2026 23:59',
     factoryName: 'Tập đoàn Vinamilk (Toàn hệ thống)',
     workshopName: 'Tổng hợp 3 Nhà máy',
     metricType: 'power',
     level: 'danger',
-    message: 'Hệ thống đo lường tự động phát hiện tổng điện năng tích lũy 6 tháng vượt định mức 50.000 kWh',
+    message: 'Hệ thống đo lường tự động phát hiện tổng điện năng tích lũy 6 tháng đầu năm vượt định mức 50.000 kWh',
     value: '52.480 kWh',
     threshold: '50.000 kWh',
     status: 'investigating',
     scopeLevel: 'enterprise',
+    targetPeriod: 'h1_2026',
     timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG',
-    excessDuration: 'Vượt định mức lũy kế 6 tháng (Kỳ I/2026)',
+    excessDuration: 'Vượt định mức lũy kế 6 tháng đầu năm (01/01 - 30/06/2026)',
   },
   {
     id: 'ALT-BOD-2026-02',
@@ -767,6 +837,7 @@ export const INITIAL_ALERTS: ESGAlert[] = [
     threshold: '35.000 kg CO2e',
     status: 'new',
     scopeLevel: 'enterprise',
+    targetPeriod: 'year_2026',
     timeHorizon: 'Đánh giá tích lũy theo NĂM',
     excessDuration: 'Cận ngưỡng hạn ngạch phát thải năm',
   },
@@ -774,7 +845,7 @@ export const INITIAL_ALERTS: ESGAlert[] = [
   // Cảnh báo Cấp Nhà máy (Factory Director) - Ngưỡng 5.000 kWh, chu kỳ Quý
   {
     id: 'ALT-FACT-2026-01',
-    timestamp: '18/10/2026 14:15',
+    timestamp: '30/09/2026 18:00',
     factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
     workshopName: 'Toàn bộ 3 Phân xưởng',
     metricType: 'power',
@@ -784,8 +855,9 @@ export const INITIAL_ALERTS: ESGAlert[] = [
     threshold: '5.000 kWh',
     status: 'investigating',
     scopeLevel: 'factory',
+    targetPeriod: 'q3_2026',
     timeHorizon: 'Đánh giá tích lũy theo QUÝ',
-    excessDuration: 'Vượt định mức lũy kế Quý III/2026',
+    excessDuration: 'Vượt định mức lũy kế Quý III/2026 (Đã đóng sổ)',
   },
   {
     id: 'ALT-FACT-2026-02',
@@ -799,6 +871,7 @@ export const INITIAL_ALERTS: ESGAlert[] = [
     threshold: '3.500 kg CO2e',
     status: 'resolved',
     scopeLevel: 'factory',
+    targetPeriod: 'q3_2026',
     timeHorizon: 'Đánh giá tích lũy theo QUÝ',
     excessDuration: 'Tiệm cận ngưỡng an toàn quý III',
     rootCause: 'Lò hơi đốt dầu FO số 02 bị đóng cặn muội than ở vòi phun phụ, làm giảm hiệu suất sinh nhiệt và tăng lượng dầu tiêu hao, dẫn đến lượng phát thải CO₂ tăng cao trong các ca tăng phụ tải xuất khẩu.',
@@ -818,19 +891,20 @@ export const INITIAL_ALERTS: ESGAlert[] = [
   // Cảnh báo Cấp Bộ phận (Workshop Lead) - Ngưỡng 500 kWh, chu kỳ Tháng
   {
     id: 'ALT-WS-2026-01',
-    timestamp: '19/10/2026 17:45',
+    timestamp: '30/09/2026 21:00',
     factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
     workshopName: 'PX Chế biến sữa tiệt trùng',
     deviceName: 'Máy tiệt trùng UHT Aseptic #01',
     metricType: 'power',
     level: 'danger',
-    message: 'Hệ thống cảm biến IoT ghi nhận tiêu thụ điện tích lũy tháng 10 vượt định mức 500 kWh tại Máy UHT #01',
+    message: 'Hệ thống cảm biến IoT ghi nhận tiêu thụ điện tích lũy tháng 9 vượt định mức 500 kWh tại Máy UHT #01',
     value: '520 kWh',
     threshold: '500 kWh',
     status: 'investigating',
     scopeLevel: 'workshop',
+    targetPeriod: 'm9_2026',
     timeHorizon: 'Đánh giá tích lũy theo THÁNG',
-    excessDuration: 'Quá định mức bình quân tháng 10 (30 ngày)',
+    excessDuration: 'Quá định mức bình quân tháng 9/2026 (Đã đóng sổ)',
   },
   {
     id: 'ALT-WS-2026-02',
@@ -845,22 +919,73 @@ export const INITIAL_ALERTS: ESGAlert[] = [
     threshold: '40 m³',
     status: 'new',
     scopeLevel: 'workshop',
+    targetPeriod: 'm10_2026',
     timeHorizon: 'Đánh giá tích lũy theo THÁNG',
-    excessDuration: 'Cận định mức sử dụng nước tháng',
+    excessDuration: 'Cận định mức sử dụng nước tháng 10',
   },
 ];
 
 // Dữ liệu xu hướng đa tầng (Multi-tier Trend History)
 export const ESG_TREND_DATA = {
-  // Cấp Bộ phận: Ngày (Ca) / Tuần / Tháng
+  // Cấp Bộ phận
   today: [
-    { time: 'Ca 1 (00h-04h)', power: 280, co2: 170, water: 22 },
-    { time: 'Ca 1 (04h-08h)', power: 340, co2: 210, water: 26 },
-    { time: 'Ca 2 (08h-12h)', power: 480, co2: 320, water: 38 },
-    { time: 'Ca 2 (12h-16h)', power: 495, co2: 340, water: 39 },
-    { time: 'Ca 3 (16h-20h)', power: 460, co2: 310, water: 35 },
-    { time: 'Ca 3 (20h-24h)', power: 390, co2: 260, water: 29 },
+    { time: 'Ca 1 (00h-04h)', power: 28, co2: 17, water: 2.2 },
+    { time: 'Ca 1 (04h-08h)', power: 34, co2: 21, water: 2.6 },
+    { time: 'Ca 2 (08h-12h)', power: 48, co2: 32, water: 3.8 },
+    { time: 'Ca 2 (12h-16h)', power: 50, co2: 34, water: 3.9 },
+    { time: 'Ca 3 (16h-20h)', power: 46, co2: 31, water: 3.5 },
+    { time: 'Ca 3 (20h-24h)', power: 39, co2: 26, water: 2.9 },
   ],
+  m9_2026: [
+    { time: 'Tuần 1 (T9)', power: 125, co2: 70, water: 8 },
+    { time: 'Tuần 2 (T9)', power: 130, co2: 75, water: 9 },
+    { time: 'Tuần 3 (T9)', power: 130, co2: 75, water: 8.5 },
+    { time: 'Tuần 4 (T9 - Đóng sổ)', power: 135, co2: 75, water: 8.5 },
+  ],
+  m10_2026: [
+    { time: 'Tuần 1 (T10)', power: 110, co2: 72, water: 7.8 },
+    { time: 'Tuần 2 (T10)', power: 115, co2: 76, water: 8.2 },
+    { time: 'Tuần 3 (T10 - Hiện tại)', power: 120, co2: 78, water: 8.4 },
+    { time: 'Tuần 4 (Dự kiến)', power: 90, co2: 58, water: 6.2 },
+  ],
+
+  // Cấp Nhà máy
+  q3_2026: [
+    { time: 'Tháng 7 (T7)', power: 1720, co2: 940, water: 105 },
+    { time: 'Tháng 8 (T8)', power: 1760, co2: 960, water: 110 },
+    { time: 'Tháng 9 (T9 - Đóng sổ)', power: 1780, co2: 970, water: 110 },
+  ],
+  q4_2026: [
+    { time: 'Tháng 10 (Hiện tại)', power: 1680, co2: 920, water: 102 },
+    { time: 'Tháng 11 (Kế hoạch)', power: 1620, co2: 890, water: 98 },
+    { time: 'Tháng 12 (Kế hoạch)', power: 1650, co2: 910, water: 100 },
+  ],
+
+  // Cấp Doanh nghiệp (BOD)
+  h1_2026: [
+    { time: 'Tháng 1', power: 8400, co2: 4800, water: 550 },
+    { time: 'Tháng 2', power: 7900, co2: 4500, water: 520 },
+    { time: 'Tháng 3', power: 8600, co2: 4900, water: 560 },
+    { time: 'Tháng 4', power: 8800, co2: 5050, water: 580 },
+    { time: 'Tháng 5', power: 9280, co2: 5350, water: 610 },
+    { time: 'Tháng 6 (Đóng sổ 6T)', power: 9500, co2: 5500, water: 630 },
+  ],
+  h2_2026: [
+    { time: 'Tháng 7', power: 7800, co2: 4500, water: 510 },
+    { time: 'Tháng 8', power: 8100, co2: 4700, water: 530 },
+    { time: 'Tháng 9', power: 7900, co2: 4600, water: 520 },
+    { time: 'Tháng 10 (Hiện tại)', power: 8300, co2: 4800, water: 540 },
+    { time: 'Tháng 11 (Kế hoạch)', power: 0, co2: 0, water: 0 },
+    { time: 'Tháng 12 (Kế hoạch)', power: 0, co2: 0, water: 0 },
+  ],
+  year_2026: [
+    { time: 'Quý I (Đã chốt)', power: 24900, co2: 14200, water: 1630 },
+    { time: 'Quý II (Đã chốt)', power: 27580, co2: 15900, water: 1820 },
+    { time: 'Quý III (Đã chốt)', power: 23800, co2: 13800, water: 1560 },
+    { time: 'Quý IV (Đang chạy live)', power: 8300, co2: 4800, water: 540 },
+  ],
+
+  // Fallbacks
   week: [
     { time: 'Thứ 2', power: 2850, co2: 1780, water: 210 },
     { time: 'Thứ 3', power: 2920, co2: 1840, water: 215 },
@@ -876,21 +1001,17 @@ export const ESG_TREND_DATA = {
     { time: 'Tuần 3', power: 11800, co2: 7500, water: 840 },
     { time: 'Tuần 4', power: 12500, co2: 8100, water: 890 },
   ],
-
-  // Cấp Nhà máy: Tháng / Quý / Năm
   quarter: [
-    { time: 'Tháng 7 (T7)', power: 48500, co2: 30800, water: 3520 },
-    { time: 'Tháng 8 (T8)', power: 51200, co2: 32600, water: 3740 },
-    { time: 'Tháng 9 (T9)', power: 49800, co2: 31500, water: 3610 },
+    { time: 'Tháng 7', power: 48500, co2: 30800, water: 3520 },
+    { time: 'Tháng 8', power: 51200, co2: 32600, water: 3740 },
+    { time: 'Tháng 9', power: 49800, co2: 31500, water: 3610 },
   ],
   year: [
-    { time: 'Quý I (Q1)', power: 148000, co2: 94000, water: 10800 },
-    { time: 'Quý II (Q2)', power: 156000, co2: 99500, water: 11400 },
-    { time: 'Quý III (Q3)', power: 152000, co2: 96800, water: 11100 },
-    { time: 'Quý IV (Dự báo)', power: 159000, co2: 101200, water: 11600 },
+    { time: 'Quý I', power: 148000, co2: 94000, water: 10800 },
+    { time: 'Quý II', power: 156000, co2: 99500, water: 11400 },
+    { time: 'Quý III', power: 152000, co2: 96800, water: 11100 },
+    { time: 'Quý IV', power: 159000, co2: 101200, water: 11600 },
   ],
-
-  // Cấp Doanh nghiệp (BOD): 3 Năm / 5 Năm / 10 Năm
   '3years': [
     { time: 'Năm 2024', power: 580000, co2: 375000, water: 42500 },
     { time: 'Năm 2025', power: 605000, co2: 388000, water: 44200 },

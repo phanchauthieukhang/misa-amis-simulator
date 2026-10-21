@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useESGSimulation } from '@/context/ESGSimulationContext';
-import { Zap, Flame, Droplet, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Zap, Flame, Droplet, AlertTriangle, ArrowUpDown, Lock } from 'lucide-react';
 import { QuotaBar150 } from './QuotaBar150';
 
 export const ESGStatsCards: React.FC = () => {
@@ -11,22 +11,21 @@ export const ESGStatsCards: React.FC = () => {
     unitPreferences,
     toggleUnit,
     isLiveStreaming,
-    currentRoleConfig,
   } = useESGSimulation();
 
-  // Thresholds from role config
-  const powerLimitKWh = currentRoleConfig.thresholds.powerDanger;
-  const co2LimitKg = currentRoleConfig.thresholds.co2Danger;
-  const waterLimitM3 = currentRoleConfig.thresholds.waterDanger;
+  // Thresholds from scoped totals based on selected closed/open period
+  const powerLimitKWh = scopedTotals.effectivePowerLimit;
+  const co2LimitKg = scopedTotals.effectiveCo2Limit;
+  const waterLimitM3 = scopedTotals.effectiveWaterLimit;
 
   // Ratios and Percentages
-  const powerRatio = scopedTotals.powerKWh / powerLimitKWh;
+  const powerRatio = powerLimitKWh > 0 ? scopedTotals.powerKWh / powerLimitKWh : 0;
   const powerPct = (powerRatio * 100).toFixed(1);
 
-  const co2Ratio = scopedTotals.co2Kg / co2LimitKg;
+  const co2Ratio = co2LimitKg > 0 ? scopedTotals.co2Kg / co2LimitKg : 0;
   const co2Pct = (co2Ratio * 100).toFixed(1);
 
-  const waterRatio = scopedTotals.waterM3 / waterLimitM3;
+  const waterRatio = waterLimitM3 > 0 ? scopedTotals.waterM3 / waterLimitM3 : 0;
   const waterPct = (waterRatio * 100).toFixed(1);
 
   // Format Power
@@ -62,7 +61,7 @@ export const ESGStatsCards: React.FC = () => {
   const getStatusBadge = (ratio: number, pct: string) => {
     if (ratio >= 1.0) {
       return (
-        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded text-red-700 bg-red-50 border border-red-200">
+        <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded text-red-700 bg-red-50 border border-red-200 animate-pulse">
           {pct}% (Vượt định mức)
         </span>
       );
@@ -81,6 +80,30 @@ export const ESGStatsCards: React.FC = () => {
     );
   };
 
+  const renderLiveOrClosedBadge = () => {
+    if (scopedTotals.isClosedPeriod) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded">
+          <Lock className="w-2.5 h-2.5 text-slate-500" />
+          ĐÃ ĐÓNG SỔ
+        </span>
+      );
+    }
+    if (isLiveStreaming) {
+      return (
+        <span className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          LIVE
+        </span>
+      );
+    }
+    return (
+      <span className="text-[9.5px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+        PAUSE
+      </span>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {/* Card 1: Power */}
@@ -91,12 +114,7 @@ export const ESGStatsCards: React.FC = () => {
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Lưu lượng điện tiêu thụ
               </span>
-              {isLiveStreaming && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  LIVE
-                </span>
-              )}
+              {renderLiveOrClosedBadge()}
             </div>
             <button
               onClick={() => toggleUnit('power')}
@@ -137,20 +155,15 @@ export const ESGStatsCards: React.FC = () => {
         </div>
       </div>
 
-      {/* Card 2: Carbon CO2 */}
+      {/* Card 2: CO2 Emissions */}
       <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs hover:shadow-sm transition-all relative overflow-hidden group flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Khí thải Carbon (CO₂)
+                Phát thải Khí nhà kính CO₂
               </span>
-              {isLiveStreaming && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  LIVE
-                </span>
-              )}
+              {renderLiveOrClosedBadge()}
             </div>
             <button
               onClick={() => toggleUnit('co2')}
@@ -199,12 +212,7 @@ export const ESGStatsCards: React.FC = () => {
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Nước thải công nghiệp
               </span>
-              {isLiveStreaming && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  LIVE
-                </span>
-              )}
+              {renderLiveOrClosedBadge()}
             </div>
             <button
               onClick={() => toggleUnit('water')}

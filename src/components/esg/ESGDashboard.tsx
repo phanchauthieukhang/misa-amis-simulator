@@ -10,6 +10,8 @@ import { ESGAlertsList } from './ESGAlertsList';
 import {
   Calendar,
   ShieldCheck,
+  Lock,
+  Radio,
 } from 'lucide-react';
 import { TimePeriod } from '@/types/esg';
 
@@ -22,6 +24,7 @@ export const ESGDashboard: React.FC = () => {
     selectedWorkshopId,
     timePeriod,
     setTimePeriod,
+    scopedTotals,
   } = useESGSimulation();
 
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
@@ -62,10 +65,23 @@ export const ESGDashboard: React.FC = () => {
 
         {/* Action Controls & Role-tailored Period Selector */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Status Badge: Closed vs Live */}
+          {scopedTotals.isClosedPeriod ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
+              <Lock className="w-3.5 h-3.5 text-amber-600" />
+              <span>SỐ LIỆU ĐÃ ĐÓNG SỔ KIỂM TOÁN</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
+              <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>KỲ HIỆN TẠI (NHẬN TELEMETRY LIVE)</span>
+            </span>
+          )}
+
           {/* Period Filter restricted to Role Scope */}
           <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium shadow-2xs">
             <Calendar className="w-3.5 h-3.5 text-teal-600" />
-            <span className="font-semibold text-slate-700">Kỳ kiểm soát:</span>
+            <span className="font-semibold text-slate-700">Kỳ:</span>
             <select
               value={timePeriod}
               onChange={(e) => setTimePeriod(e.target.value as TimePeriod)}
