@@ -14,6 +14,18 @@ import {
   ESGNavigationOptions,
 } from '@/types/esg';
 import { INITIAL_VINAMILK_DATA, INITIAL_ALERTS, ROLE_THRESHOLD_CONFIGS } from '@/data/vinamilk-mock';
+import { playIndustrialAlertSound } from '@/utils/audioAlert';
+
+export type PresetScenarioId =
+  | 'peak_production'
+  | 'eco_green'
+  | 'boiler_anomaly'
+  | 'pipe_burst'
+  | 'solar_peak'
+  | 'grid_brownout';
+
+export type EVNTariffPeriod = 'offpeak' | 'standard' | 'peak';
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy';
 
 interface ToastNotice {
   id: string;
@@ -74,6 +86,17 @@ interface ESGSimulationContextType {
   toast: ToastNotice | null;
   dismissToast: () => void;
 
+  // Presets & Environmental Simulation
+  activeScenario: PresetScenarioId | null;
+  applyPresetScenario: (scenario: PresetScenarioId) => void;
+  evnTariffPeriod: EVNTariffPeriod;
+  setEvnTariffPeriod: (period: EVNTariffPeriod) => void;
+  weatherCondition: WeatherCondition;
+  setWeatherCondition: (weather: WeatherCondition) => void;
+  isSoundEnabled: boolean;
+  toggleSound: () => void;
+  playAlarmBeep: () => void;
+
   // Calculated Totals based on current scope & selected closed/open period
   scopedTotals: {
     powerKWh: number;
@@ -128,6 +151,11 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
   const [viewLevel, setViewLevel] = useState<RealtimeViewLevel>('enterprise');
 
   const [periodsData, setPeriodsData] = useState<Record<string, PeriodMetrics>>(INITIAL_PERIOD_DATA);
+
+  const [activeScenario, setActiveScenario] = useState<PresetScenarioId | null>(null);
+  const [evnTariffPeriod, setEvnTariffPeriod] = useState<EVNTariffPeriod>('peak');
+  const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('sunny');
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
   const [isLiveStreaming, setIsLiveStreaming] = useState<boolean>(true);
   const [streamInterval, setStreamInterval] = useState<number>(3000);
@@ -757,10 +785,269 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
     });
   };
 
+  const toggleSound = useCallback(() => {
+    setIsSoundEnabled((prev) => {
+      const next = !prev;
+      showToast({
+        title: next ? 'Còi báo SCADA: ĐÃ BẬT' : 'Còi báo SCADA: ĐÃ TẮT',
+        message: next ? 'Hệ thống sẽ phát âm thanh cảnh báo khi có sự cố phát sinh.' : 'Âm thanh cảnh báo đã được tắt.',
+        type: 'info',
+      });
+      return next;
+    });
+  }, [showToast]);
+
+  const playAlarmBeep = useCallback(() => {
+    if (isSoundEnabled) {
+      playIndustrialAlertSound();
+    }
+  }, [isSoundEnabled]);
+
+  const applyPresetScenario = (scenario: PresetScenarioId) => {
+    setActiveScenario(scenario);
+    const nowFull = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (scenario === 'peak_production') {
+      // 1. Peak Production: All devices run near or slightly above capacity (95-104%)
+      setFactories((prev) =>
+        prev.map((f) => ({
+          ...f,
+          workshops: f.workshops.map((w) => ({
+            ...w,
+            devices: w.devices.map((d) => ({
+              ...d,
+              readings: {
+                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.98) } : undefined,
+                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.94) } : undefined,
+                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.96) } : undefined,
+              },
+              status: 'warning' as const,
+            })),
+          })),
+        }))
+      );
+
+      // Bump current open periods by +15%
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: { ...prev.h2_2026, powerKWh: prev.h2_2026.powerKWh + 4800 },
+        q4_2026: { ...prev.q4_2026, powerKWh: prev.q4_2026.powerKWh + 650 },
+        m10_2026: { ...prev.m10_2026, powerKWh: prev.m10_2026.powerKWh + 65 },
+        today: { ...prev.today, powerKWh: prev.today.powerKWh + 30 },
+      }));
+
+      const newAlert: ESGAlert = {
+        id: `ALT-PEAK-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+        workshopName: 'Toàn nhà máy',
+        deviceName: 'Cụm Dây chuyền Tiệt trùng UHT & Chiết rót',
+        metricType: 'power',
+        level: 'warning',
+        message: 'Kích hoạt ca sản xuất cao điểm: Phụ tải đồng thời đạt 98% công suất danh định.',
+        value: '98% tải',
+        threshold: '85% cảnh báo',
+        status: 'new',
+        scopeLevel: 'factory',
+        timeHorizon: 'Vận hành theo Ca sản xuất',
+        excessDuration: 'Ca sản xuất tăng tốc hoàn thành đơn hàng xuất khẩu',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
+      showToast({
+        title: 'KÍCH HOẠT: CA SẢN XUẤT CAO ĐIỂM',
+        message: 'Dây chuyền UHT & Chiết rót chạy 98% công suất. Cảnh báo cận tải được ghi nhận.',
+        type: 'warning',
+      });
+    } else if (scenario === 'eco_green') {
+      // 2. Eco-Green RE100: Maximize solar & biomass, minimize EVN grid
+      setFactories((prev) =>
+        prev.map((f) => ({
+          ...f,
+          workshops: f.workshops.map((w) => ({
+            ...w,
+            devices: w.devices.map((d) => ({
+              ...d,
+              readings: {
+                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.65) } : undefined,
+                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.58) } : undefined,
+                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.62) } : undefined,
+              },
+              status: 'normal' as const,
+            })),
+          })),
+        }))
+      );
+
+      setEvnTariffPeriod('offpeak');
+      setWeatherCondition('sunny');
+
+      showToast({
+        title: 'KÍCH HOẠT: CHẾ ĐỘ XANH ECO-GREEN RE100',
+        message: 'Tối ưu hóa điện mặt trời & sinh khối. Giảm 35% phát thải và đưa phụ tải về dải xanh an toàn.',
+        type: 'success',
+      });
+    } else if (scenario === 'boiler_anomaly') {
+      // 3. Boiler Anomaly: Biomass boiler fault -> FO fuel backup spikes CO2 to 138%
+      setFactories((prev) =>
+        prev.map((f) => ({
+          ...f,
+          workshops: f.workshops.map((w) => ({
+            ...w,
+            devices: w.devices.map((d, idx) =>
+              d.name.includes('Lò hơi') || (w.id.includes('phu-tro') && idx === 0)
+                ? {
+                    ...d,
+                    readings: {
+                      ...d.readings,
+                      co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.38) } : undefined,
+                      power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.15) } : undefined,
+                    },
+                    status: 'danger' as const,
+                  }
+                : d
+            ),
+          })),
+        }))
+      );
+
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: { ...prev.h2_2026, co2Kg: prev.h2_2026.co2Kg + 6200 },
+        q4_2026: { ...prev.q4_2026, co2Kg: prev.q4_2026.co2Kg + 820 },
+        m10_2026: { ...prev.m10_2026, co2Kg: prev.m10_2026.co2Kg + 85 },
+        today: { ...prev.today, co2Kg: prev.today.co2Kg + 45 },
+      }));
+
+      const newAlert: ESGAlert = {
+        id: `ALT-BOILER-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+        workshopName: 'Trạm Động lực & Lò hơi Biomass',
+        deviceName: 'Lò hơi tầng sôi đốt trấu 10 T/h #01',
+        metricType: 'co2',
+        level: 'danger',
+        message: 'Mất cân bằng buồng đốt tầng sôi lò hơi: Khói thải CO₂ vượt 138% ngưỡng quy chuẩn kỹ thuật.',
+        value: '138% ngưỡng',
+        threshold: '100% định mức',
+        status: 'new',
+        scopeLevel: 'workshop',
+        timeHorizon: 'Thời gian thực',
+        excessDuration: 'Cần chuyển đổi quy trình cấp gió và nhiên liệu',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
+      showToast({
+        title: 'CẢNH BÁO KHẨN CẤP: SỰ CỐ LÒ HƠI SINH KHỐI',
+        message: 'Phát thải CO₂ lò hơi vượt 138% ngưỡng an toàn. Đã xuất hiện cảnh báo đỏ trên SCADA.',
+        type: 'danger',
+      });
+    } else if (scenario === 'pipe_burst') {
+      // 4. Pipe Burst: CIP Water pipe leakage jumps water reading to 145%
+      setFactories((prev) =>
+        prev.map((f) => ({
+          ...f,
+          workshops: f.workshops.map((w) => ({
+            ...w,
+            devices: w.devices.map((d, idx) =>
+              d.name.includes('Bơm') || d.name.includes('CIP') || (w.id.includes('che-bien') && idx === 1)
+                ? {
+                    ...d,
+                    readings: {
+                      ...d.readings,
+                      water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.45) } : undefined,
+                    },
+                    status: 'danger' as const,
+                  }
+                : d
+            ),
+          })),
+        }))
+      );
+
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: { ...prev.h2_2026, waterM3: prev.h2_2026.waterM3 + 750 },
+        q4_2026: { ...prev.q4_2026, waterM3: prev.q4_2026.waterM3 + 95 },
+        m10_2026: { ...prev.m10_2026, waterM3: prev.m10_2026.waterM3 + 12 },
+        today: { ...prev.today, waterM3: prev.today.waterM3 + 6 },
+      }));
+
+      const newAlert: ESGAlert = {
+        id: `ALT-PIPE-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+        workshopName: 'PX Chế biến sữa tiệt trùng',
+        deviceName: 'Hệ thống Vệ sinh Đường ống Tự động CIP #02',
+        metricType: 'water',
+        level: 'danger',
+        message: 'Bục gioăng áp lực đường ống nước vệ sinh CIP: Lưu lượng nước sạch vượt 145% định mức.',
+        value: '145% lưu lượng',
+        threshold: '100% định mức',
+        status: 'new',
+        scopeLevel: 'workshop',
+        timeHorizon: 'Thời gian thực',
+        excessDuration: 'Cần ngắt van áp lực để cô lập đoạn ống',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
+      showToast({
+        title: 'CẢNH BÁO KHẨN CẤP: BỤC ĐƯỜNG ỐNG NƯỚC CIP',
+        message: 'Lưu lượng nước sạch vượt 145%. Đã kích hoạt cảnh báo đỏ tại Xưởng Chế biến.',
+        type: 'danger',
+      });
+    } else if (scenario === 'solar_peak') {
+      // 5. Solar Peak: 100% solar irradiation
+      setWeatherCondition('sunny');
+      showToast({
+        title: 'ĐIỀU KIỆN THỜI TIẾT: NẮNG ĐẠT ĐỈNH (100%)',
+        message: 'Hệ thống Solar Rooftop 5.4 MWp phát tối đa công suất, giảm tải nhận từ lưới EVN.',
+        type: 'info',
+      });
+    } else if (scenario === 'grid_brownout') {
+      // 6. EVN Peak Surcharge: Demand-Response Trigger
+      setEvnTariffPeriod('peak');
+      const newAlert: ESGAlert = {
+        id: `ALT-EVN-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Toàn hệ thống Vinamilk',
+        workshopName: 'Trạm Biến áp Trung thế 22/0.4kV',
+        deviceName: 'Công tơ Tổng EVN 3 Giá',
+        metricType: 'power',
+        level: 'warning',
+        message: 'Lưới điện EVN chạm giờ cao điểm (3.250 đ/kWh). Kích hoạt chế độ giảm phụ tải đỉnh.',
+        value: '3.250 đ/kWh',
+        threshold: 'Khung giá cao điểm',
+        status: 'new',
+        scopeLevel: 'enterprise',
+        timeHorizon: '09:30-11:30 & 17:00-20:00',
+        excessDuration: 'Khuyến nghị dịch chuyển các phụ tải gián đoạn sang giờ thấp điểm',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
+      showToast({
+        title: 'ĐIỀU TIẾT PHỤ TẢI: GIỜ CAO ĐIỂM EVN',
+        message: 'Biểu giá chạm 3.250 đ/kWh (+82%). Khuyến nghị dịch chuyển phụ tải sạc xe nâng sang ban đêm.',
+        type: 'warning',
+      });
+    }
+  };
+
   const resetSimulation = () => {
     setFactories(INITIAL_VINAMILK_DATA);
     setAlerts(INITIAL_ALERTS);
     setPeriodsData(INITIAL_PERIOD_DATA);
+    setActiveScenario(null);
+    setEvnTariffPeriod('standard');
+    setWeatherCondition('sunny');
     showToast({
       title: 'Thiết lập lại mô phỏng',
       message: 'Toàn bộ chỉ số năng lượng & phát thải các kỳ đã được hoàn trả về thông số ban đầu.',
@@ -970,6 +1257,15 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         timePeriod,
         setTimePeriod,
         periodsData,
+        activeScenario,
+        applyPresetScenario,
+        evnTariffPeriod,
+        setEvnTariffPeriod,
+        weatherCondition,
+        setWeatherCondition,
+        isSoundEnabled,
+        toggleSound,
+        playAlarmBeep,
         toast,
         dismissToast,
         scopedTotals: calculateScopedTotals(),
