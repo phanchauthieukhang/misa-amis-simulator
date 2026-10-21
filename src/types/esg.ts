@@ -1,5 +1,7 @@
 export type UserRole = 'bod' | 'factory_director' | 'workshop_lead';
 
+export type RealtimeViewLevel = 'enterprise' | 'factory' | 'workshop' | 'device';
+
 export type MetricType = 'power' | 'co2' | 'water';
 
 export interface MetricThreshold {

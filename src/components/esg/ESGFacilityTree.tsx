@@ -23,6 +23,8 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
   const {
     factories,
     role,
+    viewLevel,
+    setViewLevel,
     selectedFactoryId,
     setSelectedFactoryId,
     selectedWorkshopId,
@@ -71,33 +73,55 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
         )}
       </div>
 
-      {/* Root Node: Vinamilk */}
+      {/* Root Node: Vinamilk (Enterprise Level) */}
       <div className="space-y-1">
-        <div className="flex items-center gap-1.5 font-bold text-slate-800 px-2 py-1.5 bg-slate-50 rounded-lg">
-          <span className="w-2 h-2 rounded-full bg-teal-600" />
-          <span>Tập đoàn Vinamilk (Doanh nghiệp)</span>
+        <div
+          onClick={() => {
+            setViewLevel('enterprise');
+            setSelectedDeviceId(null);
+          }}
+          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+            viewLevel === 'enterprise'
+              ? 'bg-teal-50 text-teal-900 font-bold border border-teal-300 shadow-2xs'
+              : 'hover:bg-slate-100 text-slate-800 font-semibold'
+          }`}
+          title="Xem thông số tổng quan toàn Tập đoàn Vinamilk (3 Nhà máy)"
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-600 flex-shrink-0" />
+            <span className="truncate">Tập đoàn Vinamilk (Doanh nghiệp)</span>
+          </div>
+          <span className="text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+            {factories.length} Nhà máy
+          </span>
         </div>
 
         {/* Level 1: Factories */}
         <div className="pl-3 space-y-1 mt-1 border-l-2 border-slate-200 ml-2">
           {visibleFactories.map((factory) => {
             const isFactExpanded = !!expandedNodes[factory.id];
-            const isFactSelected = selectedFactoryId === factory.id;
+            const isFactActive = selectedFactoryId === factory.id && viewLevel === 'factory';
+            const isFactInPath = selectedFactoryId === factory.id && viewLevel !== 'enterprise';
 
             return (
               <div key={factory.id} className="space-y-1">
                 <div
                   onClick={() => {
                     setSelectedFactoryId(factory.id);
-                    if (factory.workshops.length > 0) {
-                      setSelectedWorkshopId(factory.workshops[0].id);
+                    setViewLevel('factory');
+                    setSelectedDeviceId(null);
+                    if (!expandedNodes[factory.id]) {
+                      setExpandedNodes((prev) => ({ ...prev, [factory.id]: true }));
                     }
                   }}
                   className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
-                    isFactSelected
-                      ? 'bg-teal-50 text-teal-900 font-semibold border border-teal-200'
+                    isFactActive
+                      ? 'bg-teal-50 text-teal-900 font-bold border border-teal-300 shadow-2xs'
+                      : isFactInPath
+                      ? 'bg-slate-50 text-teal-800 font-semibold'
                       : 'hover:bg-slate-50 text-slate-700'
                   }`}
+                  title={`Xem phân xưởng của ${factory.name}`}
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     <button
@@ -123,7 +147,14 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                       .filter((w) => (role === 'workshop_lead' ? w.id === selectedWorkshopId : true))
                       .map((workshop) => {
                         const isWsExpanded = !!expandedNodes[workshop.id];
-                        const isWsSelected = selectedWorkshopId === workshop.id && selectedFactoryId === factory.id;
+                        const isWsActive =
+                          selectedWorkshopId === workshop.id &&
+                          selectedFactoryId === factory.id &&
+                          viewLevel === 'workshop';
+                        const isWsInPath =
+                          selectedWorkshopId === workshop.id &&
+                          selectedFactoryId === factory.id &&
+                          viewLevel === 'device';
 
                         return (
                           <div key={workshop.id} className="space-y-1">
@@ -131,12 +162,20 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                               onClick={() => {
                                 setSelectedFactoryId(factory.id);
                                 setSelectedWorkshopId(workshop.id);
+                                setViewLevel('workshop');
+                                setSelectedDeviceId(null);
+                                if (!expandedNodes[workshop.id]) {
+                                  setExpandedNodes((prev) => ({ ...prev, [workshop.id]: true }));
+                                }
                               }}
                               className={`flex items-center justify-between px-2 py-1 rounded-md cursor-pointer transition-colors ${
-                                isWsSelected
-                                  ? 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200'
+                                isWsActive
+                                  ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-300 shadow-2xs'
+                                  : isWsInPath
+                                  ? 'bg-slate-50 text-emerald-800 font-semibold'
                                   : 'hover:bg-slate-50 text-slate-600'
                               }`}
+                              title={`Xem thiết bị trong ${workshop.name}`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 {role !== 'factory_director' && (
@@ -161,19 +200,24 @@ export const ESGFacilityTree: React.FC<ESGFacilityTreeProps> = ({ onSelectDevice
                             {isWsExpanded && role !== 'factory_director' && (
                               <div className="pl-4 space-y-0.5 border-l border-slate-100 ml-2">
                                 {workshop.devices.map((device) => {
-                                  const isDevSelected = selectedDeviceId === device.id;
+                                  const isDevActive =
+                                    selectedDeviceId === device.id && viewLevel === 'device';
                                   return (
                                     <div
                                       key={device.id}
                                       onClick={() => {
+                                        setSelectedFactoryId(factory.id);
+                                        setSelectedWorkshopId(workshop.id);
                                         setSelectedDeviceId(device.id);
+                                        setViewLevel('device');
                                         if (onSelectDevice) onSelectDevice(device.id);
                                       }}
                                       className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer transition-colors ${
-                                        isDevSelected
-                                          ? 'bg-sky-50 text-sky-900 font-semibold border border-sky-200'
+                                        isDevActive
+                                          ? 'bg-sky-50 text-sky-900 font-bold border border-sky-300 shadow-2xs'
                                           : 'hover:bg-slate-50 text-slate-600'
                                       }`}
+                                      title={`Xem telemetry thời gian thực: ${device.name}`}
                                     >
                                       <div className="flex items-center gap-1.5 truncate">
                                         <Cpu className="w-3 h-3 text-slate-400 flex-shrink-0" />

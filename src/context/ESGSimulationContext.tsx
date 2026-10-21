@@ -10,6 +10,7 @@ import {
   MetricType,
   RoleThresholdConfig,
   AlertResolutionPayload,
+  RealtimeViewLevel,
 } from '@/types/esg';
 import { INITIAL_VINAMILK_DATA, INITIAL_ALERTS, ROLE_THRESHOLD_CONFIGS } from '@/data/vinamilk-mock';
 
@@ -25,6 +26,8 @@ interface ESGSimulationContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   currentRoleConfig: RoleThresholdConfig;
+  viewLevel: RealtimeViewLevel;
+  setViewLevel: (level: RealtimeViewLevel) => void;
   selectedFactoryId: string;
   setSelectedFactoryId: (id: string) => void;
   selectedWorkshopId: string;
@@ -79,6 +82,7 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>('nm-vnm-bd');
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>('px-che-bien');
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [viewLevel, setViewLevel] = useState<RealtimeViewLevel>('enterprise');
 
   const [isLiveStreaming, setIsLiveStreaming] = useState<boolean>(true);
   const [streamInterval, setStreamInterval] = useState<number>(3000);
@@ -120,12 +124,19 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
     // Automatically set the appropriate time period according to role hierarchy!
     setTimePeriod(newConfig.defaultPeriod);
 
-    // Adjust selections to match defaults for roles
-    if (newRole === 'factory_director') {
+    // Adjust selections and viewLevel to match defaults for roles
+    if (newRole === 'bod') {
+      setViewLevel('enterprise');
+      setSelectedDeviceId(null);
+    } else if (newRole === 'factory_director') {
+      setViewLevel('factory');
       setSelectedFactoryId('nm-vnm-bd');
+      setSelectedDeviceId(null);
     } else if (newRole === 'workshop_lead') {
+      setViewLevel('workshop');
       setSelectedFactoryId('nm-vnm-bd');
       setSelectedWorkshopId('px-che-bien');
+      setSelectedDeviceId(null);
     }
 
     showToast({
@@ -506,6 +517,8 @@ export const ESGSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
         role,
         setRole,
         currentRoleConfig,
+        viewLevel,
+        setViewLevel,
         selectedFactoryId,
         setSelectedFactoryId,
         selectedWorkshopId,
