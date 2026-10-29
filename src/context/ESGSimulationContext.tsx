@@ -122,12 +122,117 @@ const INITIAL_PERIOD_DATA: Record<string, PeriodMetrics> = {
 
   // Quản đốc NM (Bình Dương):
   q3_2026: { powerKWh: 5260, co2Kg: 2870, waterM3: 325 }, // Quý III: ĐÃ ĐÓNG SỔ (Vượt 5k định mức)
-  q4_2026: { powerKWh: 2450, co2Kg: 1620, waterM3: 185 }, // Quý IV: KỲ HIỆN TẠI (49% định mức 5k)
+  q4_2026: { powerKWh: 3450, co2Kg: 2320, waterM3: 265 }, // Quý IV: KỲ HIỆN TẠI (69% định mức 5k)
 
   // Trưởng bộ phận (PX Chế biến):
   m9_2026: { powerKWh: 520, co2Kg: 295, waterM3: 34 }, // Tháng 9: ĐÃ ĐÓNG SỔ (Vượt 500 định mức)
   m10_2026: { powerKWh: 365, co2Kg: 240, waterM3: 26 }, // Tháng 10: KỲ HIỆN TẠI (73% định mức 500)
   today: { powerKWh: 145, co2Kg: 95, waterM3: 11 }, // Ca hôm nay (72.5% định mức ca 200)
+};
+
+// Pure helper: Synchronously recalculates Device Status -> Workshop Totals & Status -> Factory Totals & Status
+// Ensures 100% bottom-up mathematical & visual consistency across all charts, tables, and SCADA views.
+const recalculateFactoriesHierarchy = (factoriesList: FactoryItem[]): FactoryItem[] => {
+  return factoriesList.map((factory) => {
+    let factoryPower = 0;
+    let factoryCo2 = 0;
+    let factoryWater = 0;
+    let factoryHasDangerWorkshop = false;
+    let factoryHasWarningWorkshop = false;
+
+    const updatedWorkshops = factory.workshops.map((workshop) => {
+      let workshopPower = 0;
+      let workshopCo2 = 0;
+      let workshopWater = 0;
+      let wsHasDangerDevice = false;
+      let wsHasWarningDevice = false;
+
+      const updatedDevices = workshop.devices.map((device) => {
+        const pVal = device.readings.power?.value || 0;
+        const pMax = device.readings.power?.max || 1;
+        const cVal = device.readings.co2?.value || 0;
+        const cMax = device.readings.co2?.max || 1;
+        const wVal = device.readings.water?.value || 0;
+        const wMax = device.readings.water?.max || 1;
+
+        workshopPower += pVal;
+        workshopCo2 += cVal;
+        workshopWater += wVal;
+
+        const pRatio = device.readings.power ? pVal / pMax : 0;
+        const cRatio = device.readings.co2 ? cVal / cMax : 0;
+        const wRatio = device.readings.water ? wVal / wMax : 0;
+        const maxRatio = Math.max(pRatio, cRatio, wRatio);
+
+        let devStatus: 'normal' | 'warning' | 'danger' = 'normal';
+        if (maxRatio >= 1.0) {
+          devStatus = 'danger';
+          wsHasDangerDevice = true;
+        } else if (maxRatio >= 0.8) {
+          devStatus = 'warning';
+          wsHasWarningDevice = true;
+        }
+
+        return {
+          ...device,
+          status: devStatus,
+        };
+      });
+
+      factoryPower += workshopPower;
+      factoryCo2 += workshopCo2;
+      factoryWater += workshopWater;
+
+      const wsPRatio = workshopPower / 2500;
+      const wsCRatio = workshopCo2 / 1800;
+      const wsWRatio = workshopWater / 250;
+      const wsMaxRatio = Math.max(wsPRatio, wsCRatio, wsWRatio);
+
+      let wsStatus: 'normal' | 'warning' | 'danger' = 'normal';
+      if (wsMaxRatio >= 1.0 || wsHasDangerDevice) {
+        wsStatus = wsMaxRatio >= 1.0 ? 'danger' : 'warning';
+      } else if (wsMaxRatio >= 0.8 || wsHasWarningDevice) {
+        wsStatus = 'warning';
+      }
+
+      if (wsStatus === 'danger') factoryHasDangerWorkshop = true;
+      if (wsStatus === 'warning') factoryHasWarningWorkshop = true;
+
+      return {
+        ...workshop,
+        devices: updatedDevices,
+        totals: {
+          powerKWh: Math.round(workshopPower),
+          co2Kg: Math.round(workshopCo2),
+          waterM3: Math.round(workshopWater),
+        },
+        status: wsStatus,
+      };
+    });
+
+    const factPRatio = factoryPower / 5000;
+    const factCRatio = factoryCo2 / 3500;
+    const factWRatio = factoryWater / 400;
+    const factMaxRatio = Math.max(factPRatio, factCRatio, factWRatio);
+
+    let factStatus: 'normal' | 'warning' | 'danger' = 'normal';
+    if (factMaxRatio >= 1.0) {
+      factStatus = 'danger';
+    } else if (factMaxRatio >= 0.8 || factoryHasDangerWorkshop || factoryHasWarningWorkshop) {
+      factStatus = 'warning';
+    }
+
+    return {
+      ...factory,
+      workshops: updatedWorkshops,
+      totals: {
+        powerKWh: Math.round(factoryPower),
+        co2Kg: Math.round(factoryCo2),
+        waterM3: Math.round(factoryWater),
+      },
+      status: factStatus,
+    };
+  });
 };
 
 export interface ESGSimulationProviderProps {
@@ -266,6 +371,8 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
 
   // Realtime Simulation Loop: Updates current open periods ONLY!
   // Closed audit periods (h1_2026, q3_2026, m9_2026) remain STRICTLY IMMUTABLE!
+  // Importantly, if a device metric is in an active over-quota anomaly state (>= max * 1.02),
+  // it fluctuates within its over-quota band [max * 1.08, max * 1.48] instead of being clamped back down below 100%!
   useEffect(() => {
     if (!isLiveStreaming) return;
 
@@ -273,104 +380,52 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
       setFactories((prevFactories) => {
         const factor = fluctuationLevel === 'low' ? 0.015 : fluctuationLevel === 'medium' ? 0.035 : 0.07;
 
-        return prevFactories.map((factory) => {
-          let factoryPower = 0;
-          let factoryCo2 = 0;
-          let factoryWater = 0;
-
-          const updatedWorkshops = factory.workshops.map((workshop) => {
-            let workshopPower = 0;
-            let workshopCo2 = 0;
-            let workshopWater = 0;
-            let hasWarning = false;
-            let hasDanger = false;
-
-            const updatedDevices = workshop.devices.map((device) => {
+        const mutated = prevFactories.map((factory) => ({
+          ...factory,
+          workshops: factory.workshops.map((workshop) => ({
+            ...workshop,
+            devices: workshop.devices.map((device) => {
               const updatedReadings = { ...device.readings };
 
               if (updatedReadings.power) {
-                const delta = (Math.random() * 2 - 1) * factor * updatedReadings.power.max;
-                const newVal = Math.max(50, Math.min(updatedReadings.power.max * 1.05, updatedReadings.power.value + delta));
+                const { value, max } = updatedReadings.power;
+                const delta = (Math.random() * 2 - 1) * factor * max;
+                const isOverQuota = value >= max * 1.02;
+                const minBound = isOverQuota ? max * 1.08 : max * 0.25;
+                const maxBound = isOverQuota ? max * 1.48 : max * 0.96;
+                const newVal = Math.max(minBound, Math.min(maxBound, value + delta));
                 updatedReadings.power = { ...updatedReadings.power, value: Math.round(newVal) };
-                workshopPower += updatedReadings.power.value;
               }
 
               if (updatedReadings.co2) {
-                const delta = (Math.random() * 2 - 1) * factor * updatedReadings.co2.max;
-                const newVal = Math.max(20, Math.min(updatedReadings.co2.max * 1.05, updatedReadings.co2.value + delta));
+                const { value, max } = updatedReadings.co2;
+                const delta = (Math.random() * 2 - 1) * factor * max;
+                const isOverQuota = value >= max * 1.02;
+                const minBound = isOverQuota ? max * 1.08 : max * 0.25;
+                const maxBound = isOverQuota ? max * 1.48 : max * 0.96;
+                const newVal = Math.max(minBound, Math.min(maxBound, value + delta));
                 updatedReadings.co2 = { ...updatedReadings.co2, value: Math.round(newVal) };
-                workshopCo2 += updatedReadings.co2.value;
               }
 
               if (updatedReadings.water) {
-                const delta = (Math.random() * 2 - 1) * factor * updatedReadings.water.max;
-                const newVal = Math.max(5, Math.min(updatedReadings.water.max * 1.05, updatedReadings.water.value + delta));
+                const { value, max } = updatedReadings.water;
+                const delta = (Math.random() * 2 - 1) * factor * max;
+                const isOverQuota = value >= max * 1.02;
+                const minBound = isOverQuota ? max * 1.08 : max * 0.25;
+                const maxBound = isOverQuota ? max * 1.48 : max * 0.96;
+                const newVal = Math.max(minBound, Math.min(maxBound, value + delta));
                 updatedReadings.water = { ...updatedReadings.water, value: Math.round(newVal) };
-                workshopWater += updatedReadings.water.value;
-              }
-
-              let devStatus: 'normal' | 'warning' | 'danger' = 'normal';
-              const pRatio = updatedReadings.power ? updatedReadings.power.value / updatedReadings.power.max : 0;
-              const cRatio = updatedReadings.co2 ? updatedReadings.co2.value / updatedReadings.co2.max : 0;
-              const wRatio = updatedReadings.water ? updatedReadings.water.value / updatedReadings.water.max : 0;
-              const maxRatio = Math.max(pRatio, cRatio, wRatio);
-
-              if (maxRatio >= 1.0) {
-                devStatus = 'danger';
-                hasDanger = true;
-              } else if (maxRatio >= 0.8) {
-                devStatus = 'warning';
-                hasWarning = true;
               }
 
               return {
                 ...device,
                 readings: updatedReadings,
-                status: devStatus,
               };
-            });
+            }),
+          })),
+        }));
 
-            factoryPower += workshopPower;
-            factoryCo2 += workshopCo2;
-            factoryWater += workshopWater;
-
-            const wsPRatio = workshopPower / 2500;
-            const wsCRatio = workshopCo2 / 1800;
-            const wsWRatio = workshopWater / 250;
-            const wsMaxRatio = Math.max(wsPRatio, wsCRatio, wsWRatio);
-            const wsStatus: 'normal' | 'warning' | 'danger' =
-              wsMaxRatio >= 1.0 ? 'danger' : wsMaxRatio >= 0.8 ? 'warning' : 'normal';
-
-            return {
-              ...workshop,
-              devices: updatedDevices,
-              totals: {
-                powerKWh: Math.round(workshopPower),
-                co2Kg: Math.round(workshopCo2),
-                waterM3: Math.round(workshopWater),
-              },
-              status: wsStatus,
-            };
-          });
-
-          const factPRatio = factoryPower / 5000;
-          const factCRatio = factoryCo2 / 3500;
-          const factWRatio = factoryWater / 400;
-          const factMaxRatio = Math.max(factPRatio, factCRatio, factWRatio);
-          const factStatus: 'normal' | 'warning' | 'danger' =
-            factMaxRatio >= 1.0 ? 'danger' : factMaxRatio >= 0.8 ? 'warning' : 'normal';
-
-          return {
-            ...factory,
-            workshops: updatedWorkshops,
-            totals: {
-              powerKWh: Math.round(factoryPower),
-              co2Kg: Math.round(factoryCo2),
-              waterM3: Math.round(factoryWater),
-            },
-            status: factStatus,
-          };
-        });
+        return recalculateFactoriesHierarchy(mutated);
       });
 
       // Gradually accumulate small telemetry increments into CURRENT OPEN PERIODS only!
@@ -379,22 +434,22 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         h2_2026: {
           powerKWh: prev.h2_2026.powerKWh + Math.round(Math.random() * 2),
           co2Kg: prev.h2_2026.co2Kg + Math.round(Math.random() * 1.5),
-          waterM3: prev.h2_2026.waterM3 + Math.round(Math.random() * 0.2 * 10) / 10,
+          waterM3: Number((prev.h2_2026.waterM3 + Math.round(Math.random() * 0.2 * 10) / 10).toFixed(1)),
         },
         q4_2026: {
           powerKWh: prev.q4_2026.powerKWh + Math.round(Math.random() * 1),
           co2Kg: prev.q4_2026.co2Kg + Math.round(Math.random() * 0.8),
-          waterM3: prev.q4_2026.waterM3 + Math.round(Math.random() * 0.1 * 10) / 10,
+          waterM3: Number((prev.q4_2026.waterM3 + Math.round(Math.random() * 0.1 * 10) / 10).toFixed(1)),
         },
         m10_2026: {
           powerKWh: prev.m10_2026.powerKWh + Math.round(Math.random() * 0.5),
           co2Kg: prev.m10_2026.co2Kg + Math.round(Math.random() * 0.4),
-          waterM3: prev.m10_2026.waterM3 + Math.round(Math.random() * 0.05 * 10) / 10,
+          waterM3: Number((prev.m10_2026.waterM3 + Math.round(Math.random() * 0.05 * 10) / 10).toFixed(1)),
         },
         today: {
           powerKWh: prev.today.powerKWh + Math.round(Math.random() * 0.3),
           co2Kg: prev.today.co2Kg + Math.round(Math.random() * 0.2),
-          waterM3: prev.today.waterM3 + Math.round(Math.random() * 0.02 * 10) / 10,
+          waterM3: Number((prev.today.waterM3 + Math.round(Math.random() * 0.02 * 10) / 10).toFixed(1)),
         },
       }));
 
@@ -404,10 +459,9 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
     return () => clearInterval(timer);
   }, [isLiveStreaming, streamInterval, fluctuationLevel]);
 
-  // Inject Anomaly with Rigorous Period Scoping & Historical Closed-Period Integrity!
+  // Inject Anomaly with Rigorous Period Scoping, Historical Closed-Period Integrity & Bottom-Up UX/UI Sync!
   const triggerAnomaly = (metric: MetricType, periodTarget: 'closed_period' | 'current_period' = 'closed_period') => {
     const isClosedTarget = periodTarget === 'closed_period';
-    const cfg = ROLE_THRESHOLD_CONFIGS[role];
 
     if (role === 'bod') {
       if (isClosedTarget) {
@@ -434,8 +488,13 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           metricType: metric,
           level: 'danger',
           message: `Kiểm toán sau đóng sổ phát hiện bổ sung sản lượng ${metric === 'power' ? 'điện' : metric === 'co2' ? 'CO₂' : 'nước'} 6 tháng đầu năm vượt định mức chuẩn (+${addP || addC || addW} ${metric === 'power' ? 'kWh' : metric === 'co2' ? 'kg' : 'm³'}).`,
-          value: `${(52480 + addP).toLocaleString('vi-VN')} kWh`,
-          threshold: '50.000 kWh',
+          value:
+            metric === 'power'
+              ? `${(52480 + addP).toLocaleString('vi-VN')} kWh`
+              : metric === 'co2'
+              ? `${(30100 + addC).toLocaleString('vi-VN')} kg CO₂e`
+              : `${(3450 + addW).toLocaleString('vi-VN')} m³`,
+          threshold: metric === 'power' ? '50.000 kWh' : metric === 'co2' ? '35.000 kg CO₂e' : '4.000 m³',
           status: 'new',
           scopeLevel: 'enterprise',
           targetPeriod: 'h1_2026',
@@ -450,11 +509,10 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           type: 'danger',
         });
       } else {
-        // Anomaly in CURRENT PERIOD (6T Cuối năm / h2_2026)
-        // Increases h2_2026 and year_2026. h1_2026 (closed) DOES NOT CHANGE!
-        const addP = metric === 'power' ? 19000 : 0;
-        const addC = metric === 'co2' ? 14000 : 0;
-        const addW = metric === 'water' ? 1700 : 0;
+        // Anomaly in CURRENT PERIOD (6T Cuối năm / h2_2026 & year_2026)
+        const addP = metric === 'power' ? 24500 : 0;
+        const addC = metric === 'co2' ? 18500 : 0;
+        const addW = metric === 'water' ? 2150 : 0;
 
         setPeriodsData((prev) => ({
           ...prev,
@@ -465,50 +523,73 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           },
         }));
 
-        // Also bump current telemetry in factories to visually spike the realtime SCADA dials!
+        // Synchronously push devices across all 3 factories over 100% for the triggered metric
+        // so that Factory Comparison Chart, Ranking Table, and SCADA all turn RED in unison!
         setFactories((prev) =>
-          prev.map((f, i) =>
-            i === 0
-              ? {
-                  ...f,
-                  totals: {
-                    ...f.totals,
-                    powerKWh: f.totals.powerKWh + 800,
-                    co2Kg: f.totals.co2Kg + 600,
-                  },
-                }
-              : f
+          recalculateFactoriesHierarchy(
+            prev.map((f, fIdx) => ({
+              ...f,
+              workshops: f.workshops.map((w) => ({
+                ...w,
+                devices: w.devices.map((d, dIdx) => {
+                  const mult = 1.24 + ((fIdx + dIdx) % 3) * 0.06; // 124% - 136%
+                  return {
+                    ...d,
+                    readings: {
+                      ...d.readings,
+                      power:
+                        metric === 'power' && d.readings.power
+                          ? { ...d.readings.power, value: Math.round(d.readings.power.max * mult) }
+                          : d.readings.power,
+                      co2:
+                        metric === 'co2' && d.readings.co2
+                          ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * mult) }
+                          : d.readings.co2,
+                      water:
+                        metric === 'water' && d.readings.water
+                          ? { ...d.readings.water, value: Math.round(d.readings.water.max * (mult + 0.08)) }
+                          : d.readings.water,
+                    },
+                  };
+                }),
+              })),
+            }))
           )
         );
 
         const newAlert: ESGAlert = {
           id: `ALT-BOD-H2-${Date.now().toString().slice(-4)}`,
           timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          factoryName: 'Tập đoàn Vinamilk (Toàn hệ thống)',
+          factoryName: 'Tập đoàn Vinamilk (Toàn hệ thống 3 Nhà máy)',
           workshopName: 'Kỳ vận hành 6 tháng cuối năm',
           metricType: metric,
           level: 'danger',
-          message: `Hệ thống đo lường tự động phát hiện sản lượng ${metric === 'power' ? 'điện' : metric === 'co2' ? 'CO₂' : 'nước'} kỳ 6 tháng cuối năm vượt hạn ngạch 50.000 (${(32100 + addP).toLocaleString('vi-VN')}).`,
-          value: `${(32100 + addP).toLocaleString('vi-VN')} kWh`,
-          threshold: '50.000 kWh',
+          message: `Hệ thống SCADA Tập đoàn phát hiện sản lượng ${metric === 'power' ? 'điện' : metric === 'co2' ? 'phát thải CO₂' : 'nước'} kỳ 6 tháng cuối năm & cả năm vượt trần hạn ngạch tại cả 3 Nhà máy.`,
+          value:
+            metric === 'power'
+              ? `${(32100 + addP).toLocaleString('vi-VN')} kWh`
+              : metric === 'co2'
+              ? `${(21500 + addC).toLocaleString('vi-VN')} kg CO₂e`
+              : `${(2400 + addW).toLocaleString('vi-VN')} m³`,
+          threshold: metric === 'power' ? '50.000 kWh' : metric === 'co2' ? '35.000 kg CO₂e' : '4.000 m³',
           status: 'new',
           scopeLevel: 'enterprise',
           targetPeriod: 'h2_2026',
-          timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG',
-          excessDuration: 'Vượt hạn ngạch lũy kế 6 tháng cuối năm',
+          timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG / NĂM',
+          excessDuration: 'Vượt hạn ngạch lũy kế 6 tháng cuối năm & tổng năm 2026',
         };
 
         setAlerts((prev) => [newAlert, ...prev]);
+        if (isSoundEnabled) playIndustrialAlertSound();
         showToast({
-          title: 'KÍCH HOẠT SỰ CỐ KỲ HIỆN TẠI (6T CUỐI NĂM)',
-          message: 'Thanh đo kỳ hiện tại đã vượt 100% định mức. Kỳ 6T đầu năm đã đóng sổ giữ nguyên số liệu.',
+          title: 'KÍCH HOẠT SỰ CỐ TOÀN TẬP ĐOÀN (KỲ LIVE)',
+          message: 'Cả 3 Nhà máy, Biểu đồ so sánh, Bảng xếp hạng và KPI Kỳ hiện tại đồng loạt báo đỏ vượt ngưỡng >100%.',
           type: 'danger',
         });
       }
     } else if (role === 'factory_director') {
       if (isClosedTarget) {
         // Anomaly belongs to QUÝ III (01/07 - 30/09/2026) [CLOSED AUDIT PERIOD]
-        // Increases q3_2026 and year_2026. q4_2026 (current) DOES NOT CHANGE!
         const addP = metric === 'power' ? 450 : 0;
         const addC = metric === 'co2' ? 320 : 0;
         const addW = metric === 'water' ? 35 : 0;
@@ -529,9 +610,14 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           workshopName: 'Kiểm toán sau đóng sổ Quý III',
           metricType: metric,
           level: 'danger',
-          message: `Biên bản kiểm toán phát hiện bổ sung mức tiêu thụ ${metric} Quý III vượt định mức 5.000 kWh tại Nhà máy Bình Dương (+${addP || addC || addW}).`,
-          value: `${(5260 + addP).toLocaleString('vi-VN')} kWh`,
-          threshold: '5.000 kWh',
+          message: `Biên bản kiểm toán phát hiện bổ sung mức tiêu thụ ${metric} Quý III vượt định mức tại Nhà máy Bình Dương (+${addP || addC || addW}).`,
+          value:
+            metric === 'power'
+              ? `${(5260 + addP).toLocaleString('vi-VN')} kWh`
+              : metric === 'co2'
+              ? `${(2870 + addC).toLocaleString('vi-VN')} kg CO₂e`
+              : `${(325 + addW).toLocaleString('vi-VN')} m³`,
+          threshold: metric === 'power' ? '5.000 kWh' : metric === 'co2' ? '3.500 kg CO₂e' : '400 m³',
           status: 'new',
           scopeLevel: 'factory',
           targetPeriod: 'q3_2026',
@@ -547,9 +633,9 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         });
       } else {
         // Anomaly in CURRENT PERIOD (Quý IV / q4_2026)
-        const addP = metric === 'power' ? 2650 : 0;
-        const addC = metric === 'co2' ? 1900 : 0;
-        const addW = metric === 'water' ? 220 : 0;
+        const addP = metric === 'power' ? 2450 : 0;
+        const addC = metric === 'co2' ? 1750 : 0;
+        const addW = metric === 'water' ? 210 : 0;
 
         setPeriodsData((prev) => ({
           ...prev,
@@ -560,42 +646,71 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           },
         }));
 
-        // Bump factory telemetry in factories
+        // Synchronously push workshops & devices of selectedFactoryId over 100% for the triggered metric!
         setFactories((prev) =>
-          prev.map((f) =>
-            f.id === selectedFactoryId
-              ? {
-                  ...f,
-                  totals: {
-                    ...f.totals,
-                    powerKWh: f.totals.powerKWh + 450,
-                  },
-                }
-              : f
+          recalculateFactoriesHierarchy(
+            prev.map((f) =>
+              f.id === selectedFactoryId
+                ? {
+                    ...f,
+                    workshops: f.workshops.map((w, wIdx) => ({
+                      ...w,
+                      devices: w.devices.map((d, dIdx) => {
+                        const mult = 1.25 + ((wIdx + dIdx) % 3) * 0.06; // 125% - 137%
+                        return {
+                          ...d,
+                          readings: {
+                            ...d.readings,
+                            power:
+                              metric === 'power' && d.readings.power
+                                ? { ...d.readings.power, value: Math.round(d.readings.power.max * mult) }
+                                : d.readings.power,
+                            co2:
+                              metric === 'co2' && d.readings.co2
+                                ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * mult) }
+                                : d.readings.co2,
+                            water:
+                              metric === 'water' && d.readings.water
+                                ? { ...d.readings.water, value: Math.round(d.readings.water.max * (mult + 0.08)) }
+                                : d.readings.water,
+                          },
+                        };
+                      }),
+                    })),
+                  }
+                : f
+            )
           )
         );
 
+        const targetFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
         const newAlert: ESGAlert = {
           id: `ALT-FACT-Q4-${Date.now().toString().slice(-4)}`,
           timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
-          workshopName: 'Dây chuyền vận hành Quý IV',
+          factoryName: targetFactory.name,
+          workshopName: 'Toàn bộ các Phân xưởng sản xuất',
           metricType: metric,
           level: 'danger',
-          message: `Hệ thống đo lường tự động phát hiện lượng tiêu thụ ${metric} Quý IV vượt định mức 5.000 (${(2450 + addP).toLocaleString('vi-VN')}).`,
-          value: `${(2450 + addP).toLocaleString('vi-VN')} kWh`,
-          threshold: '5.000 kWh',
+          message: `Hệ thống đo lường tự động phát hiện lượng tiêu thụ ${metric === 'power' ? 'điện' : metric === 'co2' ? 'phát thải CO₂' : 'nước'} Quý IV vượt định mức tại tất cả phân xưởng trực thuộc.`,
+          value:
+            metric === 'power'
+              ? `${(3450 + addP).toLocaleString('vi-VN')} kWh`
+              : metric === 'co2'
+              ? `${(2320 + addC).toLocaleString('vi-VN')} kg CO₂e`
+              : `${(265 + addW).toLocaleString('vi-VN')} m³`,
+          threshold: metric === 'power' ? '5.000 kWh' : metric === 'co2' ? '3.500 kg CO₂e' : '400 m³',
           status: 'new',
           scopeLevel: 'factory',
           targetPeriod: 'q4_2026',
           timeHorizon: 'Đánh giá tích lũy theo QUÝ',
-          excessDuration: 'Vượt định mức lũy kế Quý IV',
+          excessDuration: 'Vượt định mức lũy kế Quý IV ở các phân xưởng',
         };
 
         setAlerts((prev) => [newAlert, ...prev]);
+        if (isSoundEnabled) playIndustrialAlertSound();
         showToast({
-          title: 'KÍCH HOẠT SỰ CỐ QUÝ IV (KỲ HIỆN TẠI)',
-          message: 'Thanh đo Quý IV đã vượt 100% định mức. Quý III đã đóng sổ giữ nguyên.',
+          title: 'KÍCH HOẠT SỰ CỐ CẤP NHÀ MÁY (QUÝ IV LIVE)',
+          message: 'Các phân xưởng trực thuộc, Biểu đồ so sánh và KPI Quý IV đồng loạt vượt 100% định mức.',
           type: 'danger',
         });
       }
@@ -624,9 +739,14 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
           deviceName: 'Máy tiệt trùng UHT Aseptic #01',
           metricType: metric,
           level: 'danger',
-          message: `Kiểm tra chốt chỉ số công tơ tháng 9 phát hiện bổ sung tiêu thụ vượt định mức 500 kWh (+${addP || addC || addW}).`,
-          value: `${520 + addP} kWh`,
-          threshold: '500 kWh',
+          message: `Kiểm tra chốt chỉ số công tơ tháng 9 phát hiện bổ sung tiêu thụ vượt định mức (+${addP || addC || addW}).`,
+          value:
+            metric === 'power'
+              ? `${520 + addP} kWh`
+              : metric === 'co2'
+              ? `${295 + addC} kg CO₂e`
+              : `${34 + addW} m³`,
+          threshold: metric === 'power' ? '500 kWh' : metric === 'co2' ? '350 kg CO₂e' : '40 m³',
           status: 'new',
           scopeLevel: 'workshop',
           targetPeriod: 'm9_2026',
@@ -642,9 +762,9 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         });
       } else {
         // Anomaly in CURRENT PERIOD (Tháng 10 & Hôm nay)
-        const addP = metric === 'power' ? 150 : 0;
-        const addC = metric === 'co2' ? 115 : 0;
-        const addW = metric === 'water' ? 15 : 0;
+        const addP = metric === 'power' ? 220 : 0;
+        const addC = metric === 'co2' ? 165 : 0;
+        const addW = metric === 'water' ? 22 : 0;
 
         setPeriodsData((prev) => ({
           ...prev,
@@ -654,56 +774,87 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
             waterM3: prev.m10_2026.waterM3 + addW,
           },
           today: {
-            powerKWh: prev.today.powerKWh + addP,
-            co2Kg: prev.today.co2Kg + addC,
-            waterM3: prev.today.waterM3 + addW,
+            powerKWh: prev.today.powerKWh + Math.round(addP * 0.45),
+            co2Kg: prev.today.co2Kg + Math.round(addC * 0.45),
+            waterM3: prev.today.waterM3 + Math.round(addW * 0.45),
           },
         }));
 
-        // Bump device reading in factories
+        // Synchronously push key devices in selectedWorkshopId to 128% - 142% of max!
         setFactories((prev) =>
-          prev.map((f) => ({
-            ...f,
-            workshops: f.workshops.map((w) => ({
-              ...w,
-              devices: w.devices.map((d, dIdx) =>
-                dIdx === 0 && d.readings.power
-                  ? {
-                      ...d,
-                      readings: {
-                        ...d.readings,
-                        power: { ...d.readings.power, value: d.readings.power.value + 60 },
-                      },
-                      status: 'danger',
-                    }
-                  : d
-              ),
-            })),
-          }))
+          recalculateFactoriesHierarchy(
+            prev.map((f) =>
+              f.id === selectedFactoryId
+                ? {
+                    ...f,
+                    workshops: f.workshops.map((w) =>
+                      w.id === selectedWorkshopId
+                        ? {
+                            ...w,
+                            devices: w.devices.map((d, dIdx) => {
+                              // Push top 3 devices into clear over-quota (128% - 142%) and others into warning/high (96%)
+                              const mult = dIdx < 3 ? 1.42 - dIdx * 0.06 : 0.96;
+                              return {
+                                ...d,
+                                readings: {
+                                  ...d.readings,
+                                  power:
+                                    metric === 'power' && d.readings.power
+                                      ? { ...d.readings.power, value: Math.round(d.readings.power.max * mult) }
+                                      : d.readings.power,
+                                  co2:
+                                    metric === 'co2' && d.readings.co2
+                                      ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * mult) }
+                                      : d.readings.co2,
+                                  water:
+                                    metric === 'water' && d.readings.water
+                                      ? { ...d.readings.water, value: Math.round(d.readings.water.max * mult) }
+                                      : d.readings.water,
+                                },
+                              };
+                            }),
+                          }
+                        : w
+                    ),
+                  }
+                : f
+            )
+          )
         );
+
+        const targetFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
+        const targetWorkshop =
+          targetFactory.workshops.find((w) => w.id === selectedWorkshopId) || targetFactory.workshops[0];
+        const leadDevice = targetWorkshop.devices[0];
 
         const newAlert: ESGAlert = {
           id: `ALT-WS-M10-${Date.now().toString().slice(-4)}`,
           timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
-          workshopName: 'PX Chế biến sữa tiệt trùng',
-          deviceName: 'Máy tiệt trùng UHT Aseptic #01',
+          factoryName: targetFactory.name,
+          workshopName: targetWorkshop.name,
+          deviceName: leadDevice.name,
           metricType: metric,
           level: 'danger',
-          message: `Cảm biến IoT ghi nhận tiêu thụ điện tích lũy tháng 10 vượt định mức 500 kWh tại Máy UHT #01 (${365 + addP} kWh).`,
-          value: `${365 + addP} kWh`,
-          threshold: '500 kWh',
+          message: `Cảm biến IoT ghi nhận phụ tải ${metric === 'power' ? 'điện' : metric === 'co2' ? 'phát thải CO₂' : 'nước'} tại ${leadDevice.name} vọt lên 142% định mức, kéo tổng tích lũy Tháng 10 vượt trần an toàn.`,
+          value:
+            metric === 'power'
+              ? `${365 + addP} kWh`
+              : metric === 'co2'
+              ? `${240 + addC} kg CO₂e`
+              : `${26 + addW} m³`,
+          threshold: metric === 'power' ? '500 kWh' : metric === 'co2' ? '350 kg CO₂e' : '40 m³',
           status: 'new',
           scopeLevel: 'workshop',
           targetPeriod: 'm10_2026',
           timeHorizon: 'Đánh giá tích lũy theo THÁNG',
-          excessDuration: 'Quá định mức bình quân tháng 10',
+          excessDuration: 'Thiết bị vượt 142% công suất & tổng tháng vượt định mức',
         };
 
         setAlerts((prev) => [newAlert, ...prev]);
+        if (isSoundEnabled) playIndustrialAlertSound();
         showToast({
-          title: 'KÍCH HOẠT SỰ CỐ THÁNG 10 (KỲ HIỆN TẠI)',
-          message: 'Thanh đo Tháng 10 đã vượt định mức. Tháng 9 đã đóng sổ giữ nguyên.',
+          title: 'KÍCH HOẠT SỰ CỐ CẤP BỘ PHẬN (THÁNG 10 LIVE)',
+          message: 'Thiết bị đầu bảng (142%), Biểu đồ so sánh 150%, Bảng xếp hạng và KPI Tháng 10 đồng loạt báo đỏ!',
           type: 'danger',
         });
       }
@@ -712,7 +863,7 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
 
   // Resolve Alert:
   // Strictly preserves historical consumption (Never alters past records!).
-  // Establishes a CAPA resolution and prevents future overflow.
+  // Establishes a CAPA resolution and stabilizes current instantaneous device readings.
   const resolveAlert = (alertId: string, payload?: AlertResolutionPayload) => {
     const nowFull = new Date().toLocaleString('vi-VN', {
       day: '2-digit',
@@ -753,29 +904,31 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
     );
 
     // Future Safeguard: Stabilize current instantaneous device readings to nominal rating
-    // so future telemetry won't runaway, while historical cumulative totals remain 100% UNCHANGED.
+    // and recalculate workshop/factory hierarchy while keeping cumulative historical records unchanged.
     setFactories((prev) =>
-      prev.map((f) => ({
-        ...f,
-        workshops: f.workshops.map((w) => ({
-          ...w,
-          devices: w.devices.map((d) => {
-            if (d.status === 'danger') {
-              return {
-                ...d,
-                status: 'normal',
-                readings: {
-                  ...d.readings,
-                  power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.72) } : undefined,
-                  co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.72) } : undefined,
-                  water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.72) } : undefined,
-                },
-              };
-            }
-            return d;
-          }),
-        })),
-      }))
+      recalculateFactoriesHierarchy(
+        prev.map((f) => ({
+          ...f,
+          workshops: f.workshops.map((w) => ({
+            ...w,
+            devices: w.devices.map((d) => {
+              if (d.status === 'danger') {
+                return {
+                  ...d,
+                  status: 'normal',
+                  readings: {
+                    ...d.readings,
+                    power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.72) } : undefined,
+                    co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.72) } : undefined,
+                    water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.72) } : undefined,
+                  },
+                };
+              }
+              return d;
+            }),
+          })),
+        }))
+      )
     );
 
     showToast({
@@ -803,178 +956,230 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
     }
   }, [isSoundEnabled]);
 
+  // ============================================================================
+  // 6 ROLE-TIERED INDUSTRIAL SCENARIOS (RBAC + Technical Theory + Full UX/UI Sync)
+  // ============================================================================
   const applyPresetScenario = (scenario: PresetScenarioId) => {
     setActiveScenario(scenario);
     const nowFull = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    if (scenario === 'peak_production') {
-      // 1. Peak Production: All devices run near or slightly above capacity (95-104%)
+    if (scenario === 'boiler_anomaly') {
+      // [CẤP 3 - TRƯỞNG BỘ PHẬN / PHÂN XƯỞNG]
+      // Lý thuyết kỹ thuật: Độ ẩm trấu ép cao gây nghẹt ghi lò hơi Biomass, sụt áp suất hơi bão hòa
+      // buộc hệ thống đốt bù dầu DO/FO và bật gia nhiệt điện trở phụ tại cụm Máy tiệt trùng UHT #01, #02 & Đồng hóa.
+      setRoleState('workshop_lead');
+      setTimePeriod('m10_2026');
+      setSelectedFactoryId('nm-vnm-bd');
+      setSelectedWorkshopId('px-che-bien');
+      setViewLevel('workshop');
+
       setFactories((prev) =>
-        prev.map((f) => ({
-          ...f,
-          workshops: f.workshops.map((w) => ({
-            ...w,
-            devices: w.devices.map((d) => ({
-              ...d,
-              readings: {
-                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.98) } : undefined,
-                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.94) } : undefined,
-                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.96) } : undefined,
-              },
-              status: 'warning' as const,
-            })),
-          })),
-        }))
+        recalculateFactoriesHierarchy(
+          prev.map((f) =>
+            f.id === 'nm-vnm-bd'
+              ? {
+                  ...f,
+                  workshops: f.workshops.map((w) => {
+                    if (w.id === 'px-che-bien') {
+                      return {
+                        ...w,
+                        devices: w.devices.map((d) => {
+                          if (d.id === 'tb-uht-01') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.35) } : undefined,
+                                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.42) } : undefined,
+                              },
+                            };
+                          }
+                          if (d.id === 'tb-uht-02') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.26) } : undefined,
+                                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.34) } : undefined,
+                              },
+                            };
+                          }
+                          if (d.id === 'tb-dong-hoa') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.18) } : undefined,
+                                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.25) } : undefined,
+                              },
+                            };
+                          }
+                          return d;
+                        }),
+                      };
+                    }
+                    if (w.id === 'px-nang-luong') {
+                      return {
+                        ...w,
+                        devices: w.devices.map((d) =>
+                          d.id === 'tb-lo-hoi'
+                            ? {
+                                ...d,
+                                readings: {
+                                  ...d.readings,
+                                  power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.32) } : undefined,
+                                  co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.45) } : undefined,
+                                },
+                              }
+                            : d
+                        ),
+                      };
+                    }
+                    return w;
+                  }),
+                }
+              : f
+          )
+        )
       );
 
-      // Bump current open periods by +15%
+      // Đồng bộ kỳ hiện tại cấp Bộ phận (Tháng 10 & Ca hôm nay vượt ngưỡng > 118% - 127%)
       setPeriodsData((prev) => ({
         ...prev,
-        h2_2026: { ...prev.h2_2026, powerKWh: prev.h2_2026.powerKWh + 4800 },
-        q4_2026: { ...prev.q4_2026, powerKWh: prev.q4_2026.powerKWh + 650 },
-        m10_2026: { ...prev.m10_2026, powerKWh: prev.m10_2026.powerKWh + 65 },
-        today: { ...prev.today, powerKWh: prev.today.powerKWh + 30 },
-      }));
-
-      const newAlert: ESGAlert = {
-        id: `ALT-PEAK-${Date.now().toString().slice(-4)}`,
-        timestamp: nowFull,
-        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
-        workshopName: 'Toàn nhà máy',
-        deviceName: 'Cụm Dây chuyền Tiệt trùng UHT & Chiết rót',
-        metricType: 'power',
-        level: 'warning',
-        message: 'Kích hoạt ca sản xuất cao điểm: Phụ tải đồng thời đạt 98% công suất danh định.',
-        value: '98% tải',
-        threshold: '85% cảnh báo',
-        status: 'new',
-        scopeLevel: 'factory',
-        timeHorizon: 'Vận hành theo Ca sản xuất',
-        excessDuration: 'Ca sản xuất tăng tốc hoàn thành đơn hàng xuất khẩu',
-      };
-      setAlerts((prev) => [newAlert, ...prev]);
-
-      if (isSoundEnabled) playIndustrialAlertSound();
-
-      showToast({
-        title: 'KÍCH HOẠT: CA SẢN XUẤT CAO ĐIỂM',
-        message: 'Dây chuyền UHT & Chiết rót chạy 98% công suất. Cảnh báo cận tải được ghi nhận.',
-        type: 'warning',
-      });
-    } else if (scenario === 'eco_green') {
-      // 2. Eco-Green RE100: Maximize solar & biomass, minimize EVN grid
-      setFactories((prev) =>
-        prev.map((f) => ({
-          ...f,
-          workshops: f.workshops.map((w) => ({
-            ...w,
-            devices: w.devices.map((d) => ({
-              ...d,
-              readings: {
-                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.65) } : undefined,
-                co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.58) } : undefined,
-                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.62) } : undefined,
-              },
-              status: 'normal' as const,
-            })),
-          })),
-        }))
-      );
-
-      setEvnTariffPeriod('offpeak');
-      setWeatherCondition('sunny');
-
-      showToast({
-        title: 'KÍCH HOẠT: CHẾ ĐỘ XANH ECO-GREEN RE100',
-        message: 'Tối ưu hóa điện mặt trời & sinh khối. Giảm 35% phát thải và đưa phụ tải về dải xanh an toàn.',
-        type: 'success',
-      });
-    } else if (scenario === 'boiler_anomaly') {
-      // 3. Boiler Anomaly: Biomass boiler fault -> FO fuel backup spikes CO2 to 138%
-      setFactories((prev) =>
-        prev.map((f) => ({
-          ...f,
-          workshops: f.workshops.map((w) => ({
-            ...w,
-            devices: w.devices.map((d, idx) =>
-              d.name.includes('Lò hơi') || (w.id.includes('phu-tro') && idx === 0)
-                ? {
-                    ...d,
-                    readings: {
-                      ...d.readings,
-                      co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 1.38) } : undefined,
-                      power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.15) } : undefined,
-                    },
-                    status: 'danger' as const,
-                  }
-                : d
-            ),
-          })),
-        }))
-      );
-
-      setPeriodsData((prev) => ({
-        ...prev,
-        h2_2026: { ...prev.h2_2026, co2Kg: prev.h2_2026.co2Kg + 6200 },
-        q4_2026: { ...prev.q4_2026, co2Kg: prev.q4_2026.co2Kg + 820 },
-        m10_2026: { ...prev.m10_2026, co2Kg: prev.m10_2026.co2Kg + 85 },
-        today: { ...prev.today, co2Kg: prev.today.co2Kg + 45 },
+        m10_2026: {
+          ...prev.m10_2026,
+          powerKWh: 590, // 118% của 500 kWh
+          co2Kg: 448, // 128% của 350 kg
+        },
+        today: {
+          ...prev.today,
+          powerKWh: 238, // 119% của 200 kWh
+          co2Kg: 184, // 131% của 140 kg
+        },
       }));
 
       const newAlert: ESGAlert = {
         id: `ALT-BOILER-${Date.now().toString().slice(-4)}`,
         timestamp: nowFull,
         factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
-        workshopName: 'Trạm Động lực & Lò hơi Biomass',
-        deviceName: 'Lò hơi tầng sôi đốt trấu 10 T/h #01',
+        workshopName: 'PX Chế biến sữa tiệt trùng',
+        deviceName: 'Máy tiệt trùng UHT #01, #02 & Lò hơi Biomass',
         metricType: 'co2',
         level: 'danger',
-        message: 'Mất cân bằng buồng đốt tầng sôi lò hơi: Khói thải CO₂ vượt 138% ngưỡng quy chuẩn kỹ thuật.',
-        value: '138% ngưỡng',
-        threshold: '100% định mức',
+        message: 'Nghẹt ghi lò hơi Biomass gây sụt áp hơi, buộc bật đốt bù dầu FO & điện trở phụ UHT: Phát thải CO₂ thiết bị vọt lên 142% và tích lũy Tháng 10 vượt định mức (448 / 350 kg).',
+        value: '448 kg CO₂e (128%)',
+        threshold: '350 kg CO₂e',
         status: 'new',
         scopeLevel: 'workshop',
-        timeHorizon: 'Thời gian thực',
-        excessDuration: 'Cần chuyển đổi quy trình cấp gió và nhiên liệu',
+        targetPeriod: 'm10_2026',
+        timeHorizon: 'Đánh giá tích lũy theo THÁNG (Cấp Bộ phận)',
+        excessDuration: '3 thiết bị vượt ngưỡng 125%–142% • Tổng tháng vượt 128%',
       };
       setAlerts((prev) => [newAlert, ...prev]);
 
       if (isSoundEnabled) playIndustrialAlertSound();
 
       showToast({
-        title: 'CẢNH BÁO KHẨN CẤP: SỰ CỐ LÒ HƠI SINH KHỐI',
-        message: 'Phát thải CO₂ lò hơi vượt 138% ngưỡng an toàn. Đã xuất hiện cảnh báo đỏ trên SCADA.',
+        title: '[CẤP BỘ PHẬN] SỰ CỐ LÒ HƠI & QUÁ NHIỆT UHT',
+        message: 'Đã chuyển sang góc nhìn Trưởng bộ phận (Tháng 10): Thiết bị UHT #01/#02 (142%), PX Chế biến và KPI Tháng 10 đồng loạt báo đỏ vượt ngưỡng!',
         type: 'danger',
       });
     } else if (scenario === 'pipe_burst') {
-      // 4. Pipe Burst: CIP Water pipe leakage jumps water reading to 145%
+      // [CẤP 3 - TRƯỞNG BỘ PHẬN / PHÂN XƯỞNG]
+      // Lý thuyết kỹ thuật: Bục gioăng cao su chịu nhiệt EPDM đường ống CIP tự động & kẹt van xả đáy bồn phối trộn,
+      // làm lưu lượng nước RO súc rửa và nước thải tràn về Trạm XLNT vượt ngưỡng thiết kế.
+      setRoleState('workshop_lead');
+      setTimePeriod('m10_2026');
+      setSelectedFactoryId('nm-vnm-bd');
+      setSelectedWorkshopId('px-che-bien');
+      setViewLevel('workshop');
+
       setFactories((prev) =>
-        prev.map((f) => ({
-          ...f,
-          workshops: f.workshops.map((w) => ({
-            ...w,
-            devices: w.devices.map((d, idx) =>
-              d.name.includes('Bơm') || d.name.includes('CIP') || (w.id.includes('che-bien') && idx === 1)
-                ? {
-                    ...d,
-                    readings: {
-                      ...d.readings,
-                      water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.45) } : undefined,
-                    },
-                    status: 'danger' as const,
-                  }
-                : d
-            ),
-          })),
-        }))
+        recalculateFactoriesHierarchy(
+          prev.map((f) =>
+            f.id === 'nm-vnm-bd'
+              ? {
+                  ...f,
+                  workshops: f.workshops.map((w) => {
+                    if (w.id === 'px-che-bien') {
+                      return {
+                        ...w,
+                        devices: w.devices.map((d) => {
+                          if (d.id === 'tb-cip-clean') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.46) } : undefined,
+                                power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 1.18) } : undefined,
+                              },
+                            };
+                          }
+                          if (d.id === 'tb-bon-tron') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.38) } : undefined,
+                              },
+                            };
+                          }
+                          if (d.id === 'tb-uht-01') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.29) } : undefined,
+                              },
+                            };
+                          }
+                          if (d.id === 'tb-uht-02') {
+                            return {
+                              ...d,
+                              readings: {
+                                ...d.readings,
+                                water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.16) } : undefined,
+                              },
+                            };
+                          }
+                          return d;
+                        }),
+                      };
+                    }
+                    if (w.id === 'px-nang-luong') {
+                      return {
+                        ...w,
+                        devices: w.devices.map((d) =>
+                          d.id === 'tb-xlnt-hieu-khi'
+                            ? {
+                                ...d,
+                                readings: {
+                                  ...d.readings,
+                                  water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.42) } : undefined,
+                                },
+                              }
+                            : d
+                        ),
+                      };
+                    }
+                    return w;
+                  }),
+                }
+              : f
+          )
+        )
       );
 
       setPeriodsData((prev) => ({
         ...prev,
-        h2_2026: { ...prev.h2_2026, waterM3: prev.h2_2026.waterM3 + 750 },
-        q4_2026: { ...prev.q4_2026, waterM3: prev.q4_2026.waterM3 + 95 },
-        m10_2026: { ...prev.m10_2026, waterM3: prev.m10_2026.waterM3 + 12 },
-        today: { ...prev.today, waterM3: prev.today.waterM3 + 6 },
+        m10_2026: {
+          ...prev.m10_2026,
+          waterM3: 55, // 137.5% của định mức 40 m3
+        },
+        today: {
+          ...prev.today,
+          waterM3: 22.5, // 140.6% của định mức ca 16 m3
+        },
       }));
 
       const newAlert: ESGAlert = {
@@ -982,61 +1187,294 @@ export const ESGSimulationProvider: React.FC<ESGSimulationProviderProps> = ({
         timestamp: nowFull,
         factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
         workshopName: 'PX Chế biến sữa tiệt trùng',
-        deviceName: 'Hệ thống Vệ sinh Đường ống Tự động CIP #02',
+        deviceName: 'Hệ thống CIP tự động & Bồn phối trộn 5000L',
         metricType: 'water',
         level: 'danger',
-        message: 'Bục gioăng áp lực đường ống nước vệ sinh CIP: Lưu lượng nước sạch vượt 145% định mức.',
-        value: '145% lưu lượng',
-        threshold: '100% định mức',
+        message: 'Bục gioăng áp lực EPDM đường ống CIP & kẹt van xả bồn phối trộn: Lưu lượng nước tại CIP vọt lên 146% định mức, kéo tổng nước Tháng 10 vượt trần (55 / 40 m³).',
+        value: '55 m³ (137.5%)',
+        threshold: '40 m³',
         status: 'new',
         scopeLevel: 'workshop',
-        timeHorizon: 'Thời gian thực',
-        excessDuration: 'Cần ngắt van áp lực để cô lập đoạn ống',
+        targetPeriod: 'm10_2026',
+        timeHorizon: 'Đánh giá tích lũy theo THÁNG (Cấp Bộ phận)',
+        excessDuration: 'Thiết bị CIP vượt 146% • Tổng nước phân xưởng & tháng vượt 137%',
       };
       setAlerts((prev) => [newAlert, ...prev]);
 
       if (isSoundEnabled) playIndustrialAlertSound();
 
       showToast({
-        title: 'CẢNH BÁO KHẨN CẤP: BỤC ĐƯỜNG ỐNG NƯỚC CIP',
-        message: 'Lưu lượng nước sạch vượt 145%. Đã kích hoạt cảnh báo đỏ tại Xưởng Chế biến.',
+        title: '[CẤP BỘ PHẬN] BỤC VAN ÁP LỰC ĐƯỜNG ỐNG CIP',
+        message: 'Đã chuyển sang góc nhìn Trưởng bộ phận (Tháng 10): Hệ thống CIP (146% Nước), Bồn trộn (138%) và KPI Nước Tháng 10 đồng loạt báo đỏ!',
         type: 'danger',
       });
-    } else if (scenario === 'solar_peak') {
-      // 5. Solar Peak: 100% solar irradiation
-      setWeatherCondition('sunny');
+    } else if (scenario === 'peak_production') {
+      // [CẤP 2 - QUẢN ĐỐC NHÀ MÁY]
+      // Lý thuyết kỹ thuật: Chồng lấn phụ tải đỉnh cả 3 phân xưởng (Chế biến + Đóng gói + Năng lượng)
+      // cùng vận hành 100% dây chuyền vào khung Giờ Cao điểm EVN (3.250 đ/kWh), làm tổng công suất
+      // từng phân xưởng (>2.500 kWh) và tổng Quý IV của Nhà máy Bình Dương (>5.000 kWh) vượt ngưỡng đỏ.
+      setRoleState('factory_director');
+      setTimePeriod('q4_2026');
+      setSelectedFactoryId('nm-vnm-bd');
+      setViewLevel('factory');
+      setEvnTariffPeriod('peak');
+
+      setFactories((prev) =>
+        recalculateFactoriesHierarchy(
+          prev.map((f) =>
+            f.id === 'nm-vnm-bd'
+              ? {
+                  ...f,
+                  workshops: f.workshops.map((w, wIdx) => ({
+                    ...w,
+                    devices: w.devices.map((d, dIdx) => {
+                      const pMult = 1.18 + ((wIdx + dIdx) % 3) * 0.07; // 118% - 132%
+                      const cMult = 1.16 + ((wIdx + dIdx) % 3) * 0.06; // 116% - 128%
+                      return {
+                        ...d,
+                        readings: {
+                          ...d.readings,
+                          power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * pMult) } : undefined,
+                          co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * cMult) } : undefined,
+                          water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 1.12) } : undefined,
+                        },
+                      };
+                    }),
+                  })),
+                }
+              : f
+          )
+        )
+      );
+
+      setPeriodsData((prev) => ({
+        ...prev,
+        q4_2026: {
+          ...prev.q4_2026,
+          powerKWh: 6150, // 123% của định mức Quý 5.000 kWh
+          co2Kg: 4220, // 120.5% của định mức Quý 3.500 kg
+          waterM3: 435, // 108.7% của định mức Quý 400 m3
+        },
+      }));
+
+      const newAlert: ESGAlert = {
+        id: `ALT-PEAK-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+        workshopName: 'Toàn bộ 3 Phân xưởng (Chế biến, Đóng gói, Năng lượng)',
+        deviceName: 'Trạm Biến áp Tổng & Cụm Dây chuyền UHT - Chiết rót - Chiller',
+        metricType: 'power',
+        level: 'danger',
+        message: 'Chồng lấn phụ tải đỉnh cả 3 phân xưởng vào khung Giờ Cao điểm EVN (3.250 đ/kWh): Cả 3 phân xưởng đều vượt ngưỡng 2.500 kWh, đẩy lũy kế Quý IV Nhà máy vượt 123% định mức.',
+        value: '6.150 kWh (123%)',
+        threshold: '5.000 kWh',
+        status: 'new',
+        scopeLevel: 'factory',
+        targetPeriod: 'q4_2026',
+        timeHorizon: 'Đánh giá tích lũy theo QUÝ (Cấp Nhà máy)',
+        excessDuration: '3/3 Phân xưởng vượt ngưỡng • Trùng giờ cao điểm EVN 3.250 đ/kWh',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
       showToast({
-        title: 'ĐIỀU KIỆN THỜI TIẾT: NẮNG ĐẠT ĐỈNH (100%)',
-        message: 'Hệ thống Solar Rooftop 5.4 MWp phát tối đa công suất, giảm tải nhận từ lưới EVN.',
-        type: 'info',
+        title: '[CẤP NHÀ MÁY] CHỒNG LẤN PHỤ TẢI ĐỈNH 3 PHÂN XƯỞNG',
+        message: 'Đã chuyển sang góc nhìn Quản đốc Nhà máy (Quý IV): Cả 3 Phân xưởng, Biểu đồ so sánh và KPI Quý IV đồng loạt vượt ngưỡng >120%!',
+        type: 'danger',
       });
     } else if (scenario === 'grid_brownout') {
-      // 6. EVN Peak Surcharge: Demand-Response Trigger
+      // [CẤP 2 - QUẢN ĐỐC NHÀ MÁY]
+      // Lý thuyết kỹ thuật: Mưa bão diện rộng tại KCN Mỹ Phước làm suy giảm 85% công suất Solar Rooftop,
+      // buộc Trạm biến áp đóng lấy 100% điện lưới EVN giờ cao điểm (hệ số phát thải 0.72 kg CO2/kWh)
+      // kết hợp tăng tải Lò hơi & Chiller hút ẩm, đẩy phát thải CO2 và Điện Quý IV vượt ngưỡng.
+      setRoleState('factory_director');
+      setTimePeriod('q4_2026');
+      setSelectedFactoryId('nm-vnm-bd');
+      setViewLevel('factory');
+      setWeatherCondition('rainy');
       setEvnTariffPeriod('peak');
+
+      setFactories((prev) =>
+        recalculateFactoriesHierarchy(
+          prev.map((f) =>
+            f.id === 'nm-vnm-bd'
+              ? {
+                  ...f,
+                  workshops: f.workshops.map((w) => ({
+                    ...w,
+                    devices: w.devices.map((d, dIdx) => {
+                      const cMult = 1.24 + (dIdx % 3) * 0.06; // 124% - 136%
+                      const pMult = 1.15 + (dIdx % 3) * 0.05; // 115% - 125%
+                      return {
+                        ...d,
+                        readings: {
+                          ...d.readings,
+                          co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * cMult) } : undefined,
+                          power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * pMult) } : undefined,
+                        },
+                      };
+                    }),
+                  })),
+                }
+              : f
+          )
+        )
+      );
+
+      setPeriodsData((prev) => ({
+        ...prev,
+        q4_2026: {
+          ...prev.q4_2026,
+          powerKWh: 5680, // 113.6% định mức Quý 5.000 kWh
+          co2Kg: 4340, // 124% định mức Quý 3.500 kg
+        },
+      }));
+
       const newAlert: ESGAlert = {
         id: `ALT-EVN-${Date.now().toString().slice(-4)}`,
         timestamp: nowFull,
-        factoryName: 'Toàn hệ thống Vinamilk',
-        workshopName: 'Trạm Biến áp Trung thế 22/0.4kV',
-        deviceName: 'Công tơ Tổng EVN 3 Giá',
-        metricType: 'power',
-        level: 'warning',
-        message: 'Lưới điện EVN chạm giờ cao điểm (3.250 đ/kWh). Kích hoạt chế độ giảm phụ tải đỉnh.',
-        value: '3.250 đ/kWh',
-        threshold: 'Khung giá cao điểm',
+        factoryName: 'Nhà máy sữa Việt Nam (Bình Dương)',
+        workshopName: 'Trạm Biến áp 22kV & PX Năng lượng - Chế biến',
+        deviceName: 'Hệ thống Hòa lưới Solar 5.4 MWp & Công tơ Tổng EVN',
+        metricType: 'co2',
+        level: 'danger',
+        message: 'Mưa bão làm suy giảm 85% điện mặt trời (còn 3.2% cơ cấu), buộc đóng bù điện lưới EVN giờ cao điểm (0.72 kg CO₂/kWh): Phát thải CO₂ Quý IV Nhà máy vọt lên 124% định mức.',
+        value: '4.340 kg CO₂e (124%)',
+        threshold: '3.500 kg CO₂e',
         status: 'new',
-        scopeLevel: 'enterprise',
-        timeHorizon: '09:30-11:30 & 17:00-20:00',
-        excessDuration: 'Khuyến nghị dịch chuyển các phụ tải gián đoạn sang giờ thấp điểm',
+        scopeLevel: 'factory',
+        targetPeriod: 'q4_2026',
+        timeHorizon: 'Đánh giá tích lũy theo QUÝ (Cấp Nhà máy)',
+        excessDuration: 'Sụt áp Solar do mưa bão • Phát thải Scope 2 vượt ngưỡng Quý IV',
       };
       setAlerts((prev) => [newAlert, ...prev]);
 
       if (isSoundEnabled) playIndustrialAlertSound();
 
       showToast({
-        title: 'ĐIỀU TIẾT PHỤ TẢI: GIỜ CAO ĐIỂM EVN',
-        message: 'Biểu giá chạm 3.250 đ/kWh (+82%). Khuyến nghị dịch chuyển phụ tải sạc xe nâng sang ban đêm.',
-        type: 'warning',
+        title: '[CẤP NHÀ MÁY] MƯA BÃO SỤT ÁP SOLAR — BÙ LƯỚI EVN',
+        message: 'Tỷ trọng Solar giảm còn 3.2%, Lưới EVN tăng lên 80.5%. Phát thải CO₂ và Điện các phân xưởng & Quý IV đồng loạt báo đỏ!',
+        type: 'danger',
+      });
+    } else if (scenario === 'solar_peak') {
+      // [CẤP 1 - BAN GIÁM ĐỐC TẬP ĐOÀN]
+      // Lý thuyết kỹ thuật: Chiến dịch tăng tốc đơn hàng xuất khẩu cuối năm trên toàn tổ hợp 3 Nhà máy
+      // (Bình Dương, Mega Dairy, Thống Nhất) chạy tối đa 3 ca/ngày, khiến cả 3 nhà máy đều vượt định mức
+      // và đẩy tổng tiêu thụ Bán niên 2 (h2_2026) & Cả năm (year_2026) vượt trần hạn ngạch Tập đoàn.
+      setRoleState('bod');
+      setTimePeriod('year_2026');
+      setViewLevel('enterprise');
+      setEvnTariffPeriod('peak');
+
+      setFactories((prev) =>
+        recalculateFactoriesHierarchy(
+          prev.map((f, fIdx) => ({
+            ...f,
+            workshops: f.workshops.map((w, wIdx) => ({
+              ...w,
+              devices: w.devices.map((d, dIdx) => {
+                const mult = 1.22 + ((fIdx + wIdx + dIdx) % 3) * 0.06; // 122% - 134%
+                return {
+                  ...d,
+                  readings: {
+                    ...d.readings,
+                    power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * mult) } : undefined,
+                    co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * mult) } : undefined,
+                    water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * (mult + 0.05)) } : undefined,
+                  },
+                };
+              }),
+            })),
+          }))
+        )
+      );
+
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: {
+          powerKWh: 58400, // 116.8% của định mức 6T 50.000 kWh -> Tổng năm = 110.880 / 100.000 (110.9%)
+          co2Kg: 42200, // 120.6% của định mức 6T 35.000 kg -> Tổng năm = 72.300 / 70.000 (103.3%)
+          waterM3: 4720, // 118% của định mức 6T 4.000 m3 -> Tổng năm = 8.170 / 8.000 (102.1%)
+        },
+        q4_2026: {
+          powerKWh: 6320,
+          co2Kg: 4410,
+          waterM3: 465,
+        },
+        m10_2026: {
+          powerKWh: 615,
+          co2Kg: 455,
+          waterM3: 52,
+        },
+      }));
+
+      const newAlert: ESGAlert = {
+        id: `ALT-CORP-SURGE-${Date.now().toString().slice(-4)}`,
+        timestamp: nowFull,
+        factoryName: 'Tập đoàn Vinamilk (Toàn bộ 3 Nhà máy)',
+        workshopName: 'Bình Dương • Mega Dairy • Thống Nhất',
+        deviceName: 'Toàn bộ Dây chuyền Chế biến & Đóng gói Xuất khẩu',
+        metricType: 'power',
+        level: 'danger',
+        message: 'Chiến dịch tăng ca đơn hàng xuất khẩu cuối năm tại cả 3 Nhà máy làm tổng tiêu thụ Điện (110.880 kWh), CO₂ (72.300 kg) và Nước (8.170 m³) vượt trần hạn ngạch năm 2026 toàn Tập đoàn.',
+        value: '110.880 kWh (110.9%)',
+        threshold: '100.000 kWh / năm',
+        status: 'new',
+        scopeLevel: 'enterprise',
+        targetPeriod: 'year_2026',
+        timeHorizon: 'Đánh giá tích lũy theo 6 THÁNG / NĂM (Ban Giám đốc)',
+        excessDuration: 'Cả 3/3 Nhà máy vượt định mức • Cần trích lập dự phòng tín chỉ Carbon TK 642',
+      };
+      setAlerts((prev) => [newAlert, ...prev]);
+
+      if (isSoundEnabled) playIndustrialAlertSound();
+
+      showToast({
+        title: '[CẤP TẬP ĐOÀN] TĂNG TỐC XUẤT KHẨU — VƯỢT HẠN NGẠCH 3 NHÀ MÁY',
+        message: 'Đã chuyển sang góc nhìn Ban Giám đốc: Cả 3 Nhà máy, 3 Thẻ KPI (Điện, CO₂, Nước), Biểu đồ xu hướng và Bảng xếp hạng đồng loạt báo đỏ!',
+        type: 'danger',
+      });
+    } else if (scenario === 'eco_green') {
+      // [CẤP 1 - BAN GIÁM ĐỐC TẬP ĐOÀN & TOÀN HỆ THỐNG]
+      // Lý thuyết kỹ thuật: Kích hoạt Điều độ Xanh RE100 Toàn diện: Huy động 100% Solar Rooftop 5.4 MWp,
+      // tối ưu hóa lò hơi Biomass trấu ép, thu hồi nhiệt UHT 90% và dịch chuyển phụ tải kho lạnh AS/RS sang giờ thấp điểm đêm.
+      setFactories((prev) =>
+        recalculateFactoriesHierarchy(
+          prev.map((f) => ({
+            ...f,
+            workshops: f.workshops.map((w) => ({
+              ...w,
+              devices: w.devices.map((d) => ({
+                ...d,
+                readings: {
+                  power: d.readings.power ? { ...d.readings.power, value: Math.round(d.readings.power.max * 0.62) } : undefined,
+                  co2: d.readings.co2 ? { ...d.readings.co2, value: Math.round(d.readings.co2.max * 0.56) } : undefined,
+                  water: d.readings.water ? { ...d.readings.water, value: Math.round(d.readings.water.max * 0.6) } : undefined,
+                },
+                status: 'normal' as const,
+              })),
+            })),
+          }))
+        )
+      );
+
+      // Đưa các kỳ ĐANG MỞ (Live) về vùng xanh tối ưu (60% - 68%), giữ nguyên các kỳ đã đóng sổ!
+      setPeriodsData((prev) => ({
+        ...prev,
+        h2_2026: { powerKWh: 29800, co2Kg: 18900, waterM3: 2180 },
+        q4_2026: { powerKWh: 3120, co2Kg: 1980, waterM3: 225 },
+        m10_2026: { powerKWh: 315, co2Kg: 195, waterM3: 22 },
+        today: { powerKWh: 122, co2Kg: 76, waterM3: 9.2 },
+      }));
+
+      setEvnTariffPeriod('offpeak');
+      setWeatherCondition('sunny');
+
+      showToast({
+        title: '[TOÀN HỆ THỐNG] KÍCH HOẠT ĐIỀU ĐỘ XANH RE100 TOÀN DIỆN',
+        message: 'Tỷ trọng Năng lượng Xanh đạt 42.5% (vượt mục tiêu 40%). Toàn bộ thiết bị, phân xưởng và 3 nhà máy trở về vùng Xanh tối ưu!',
+        type: 'success',
       });
     }
   };

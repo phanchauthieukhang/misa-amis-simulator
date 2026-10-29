@@ -7,8 +7,17 @@ import { MetricType } from '@/types/esg';
 import { QuotaBar150 } from './QuotaBar150';
 
 export const ESGComparisonChart: React.FC = () => {
-  const { role, factories, selectedFactoryId, selectedWorkshopId, navigateTo } = useESGSimulation();
+  const { role, factories, selectedFactoryId, selectedWorkshopId, scopedTotals, navigateTo } = useESGSimulation();
   const [metric, setMetric] = useState<MetricType>('power');
+
+  // If viewing a closed audit period (h1_2026, q3_2026, m9_2026), align entity snapshot with closed-period audit ratios
+  const isClosed = scopedTotals.isClosedPeriod;
+  const closedRatioMap = {
+    power: scopedTotals.effectivePowerLimit > 0 ? scopedTotals.powerKWh / scopedTotals.effectivePowerLimit : 1,
+    co2: scopedTotals.effectiveCo2Limit > 0 ? scopedTotals.co2Kg / scopedTotals.effectiveCo2Limit : 1,
+    water: scopedTotals.effectiveWaterLimit > 0 ? scopedTotals.waterM3 / scopedTotals.effectiveWaterLimit : 1,
+  };
+  const activeClosedRatio = closedRatioMap[metric];
 
   // Determine comparison items based on role
   let comparisonTitle = '';
@@ -30,7 +39,7 @@ export const ESGComparisonChart: React.FC = () => {
     comparisonTitle = 'So sánh định mức tiêu thụ giữa 3 Nhà máy sản xuất';
     comparisonSubtitle = 'Quyền Ban Giám đốc: Giám sát tỷ lệ % định mức và cảnh báo vượt hạn ngạch 3 nhà máy';
 
-    items = factories.map((f) => {
+    items = factories.map((f, idx) => {
       let val = f.totals.powerKWh;
       let max = 5000;
       let unit = 'kWh';
@@ -42,6 +51,10 @@ export const ESGComparisonChart: React.FC = () => {
         val = f.totals.waterM3;
         max = 400;
         unit = 'm³';
+      }
+
+      if (isClosed && activeClosedRatio >= 1.0 && idx === 0) {
+        val = Math.round(max * Math.max(activeClosedRatio, 1.06));
       }
 
       const ratio = max > 0 ? val / max : 0;
@@ -62,7 +75,7 @@ export const ESGComparisonChart: React.FC = () => {
     comparisonTitle = `So sánh định mức giữa các Phân xưởng (${currentFactory.name})`;
     comparisonSubtitle = 'Quyền Quản đốc: Giám sát công suất & hạn mức tiêu thụ từng phân xưởng';
 
-    items = currentFactory.workshops.map((w) => {
+    items = currentFactory.workshops.map((w, idx) => {
       let val = w.totals.powerKWh;
       let max = 2500;
       let unit = 'kWh';
@@ -74,6 +87,10 @@ export const ESGComparisonChart: React.FC = () => {
         val = w.totals.waterM3;
         max = 250;
         unit = 'm³';
+      }
+
+      if (isClosed && activeClosedRatio >= 1.0 && idx === 0) {
+        val = Math.round(max * Math.max(activeClosedRatio, 1.06));
       }
 
       const ratio = max > 0 ? val / max : 0;
@@ -95,7 +112,7 @@ export const ESGComparisonChart: React.FC = () => {
     comparisonTitle = `So sánh định mức từng Thiết bị (${currentWorkshop.name})`;
     comparisonSubtitle = 'Quyền Trưởng bộ phận: Giám sát tải trọng & định mức an toàn từng thiết bị';
 
-    items = currentWorkshop.devices.map((d) => {
+    items = currentWorkshop.devices.map((d, idx) => {
       let val = 0;
       let max = 100;
       let unit = 'kWh';
@@ -111,6 +128,10 @@ export const ESGComparisonChart: React.FC = () => {
         val = d.readings.water.value;
         max = d.readings.water.max;
         unit = 'm³';
+      }
+
+      if (isClosed && activeClosedRatio >= 1.0 && idx === 0) {
+        val = Math.round(max * Math.max(activeClosedRatio, 1.05));
       }
 
       const ratio = max > 0 ? val / max : 0;

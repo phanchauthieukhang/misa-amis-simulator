@@ -65,18 +65,18 @@ export const SimulationControlPanel: React.FC = () => {
   // Helper label for active scenario
   const getScenarioLabel = (s: PresetScenarioId) => {
     switch (s) {
-      case 'peak_production':
-        return 'Ca sản xuất cao điểm';
-      case 'eco_green':
-        return 'Chế độ Eco-Green RE100';
       case 'boiler_anomaly':
-        return 'Sự cố lò hơi sinh khối';
+        return '[Cấp 3 - Bộ phận] Sự cố Lò hơi & UHT';
       case 'pipe_burst':
-        return 'Sự cố bục ống nước CIP';
-      case 'solar_peak':
-        return 'Nắng đạt đỉnh (100% Solar)';
+        return '[Cấp 3 - Bộ phận] Bục van áp lực CIP';
+      case 'peak_production':
+        return '[Cấp 2 - Nhà máy] Chồng lấn Phụ tải Đỉnh';
       case 'grid_brownout':
-        return 'Giờ cao điểm EVN';
+        return '[Cấp 2 - Nhà máy] Mưa bão Sụt áp Solar';
+      case 'solar_peak':
+        return '[Cấp 1 - Tập đoàn] Vượt Hạn ngạch 3 Nhà máy';
+      case 'eco_green':
+        return '[Cấp 1 - Tập đoàn] Điều độ Xanh RE100';
       default:
         return 'Chuẩn vận hành';
     }
@@ -220,186 +220,204 @@ export const SimulationControlPanel: React.FC = () => {
           </button>
         </div>
 
-        {/* Tab 1: Kịch bản Vận hành Nhà máy */}
+        {/* Tab 1: Kịch bản Vận hành Nhà máy theo 3 Cấp Phân quyền (RBAC) */}
         {activeTab === 'scenarios' && (
-          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-            {/* Scenario 1: Peak Production */}
-            <div
-              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                activeScenario === 'peak_production'
-                  ? 'bg-amber-950/40 border-amber-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Ca sản xuất Cao điểm</span>
-                  </div>
-                  <span className="text-[9.5px] bg-amber-950 text-amber-300 border border-amber-700 px-1.5 py-0.5 rounded">
-                    Tải 98-105%
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Dây chuyền Tiệt trùng UHT & Chiết rót Aseptic vận hành 100% công suất để kịp đơn hàng xuất khẩu.
-                </p>
-              </div>
-              <button
-                onClick={() => applyPresetScenario('peak_production')}
-                className="mt-2.5 w-full py-1.5 px-2 bg-amber-600/90 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
-              >
-                <span>{activeScenario === 'peak_production' ? 'Đang chạy Ca cao điểm' : 'Kích hoạt Ca cao điểm'}</span>
-              </button>
-            </div>
-
-            {/* Scenario 2: Eco-Green Optimization */}
-            <div
-              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                activeScenario === 'eco_green'
-                  ? 'bg-emerald-950/40 border-emerald-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Chế độ Eco-Green RE100</span>
-                  </div>
-                  <span className="text-[9.5px] bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded">
-                    Tối ưu RE100
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Tối đa hóa điện mặt trời 5.4 MWp & lò hơi sinh khối trấu ép, giảm 35% phát thải và đưa tải về mức xanh an toàn.
-                </p>
-              </div>
-              <button
-                onClick={() => applyPresetScenario('eco_green')}
-                className="mt-2.5 w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
-              >
-                <span>{activeScenario === 'eco_green' ? 'Đang chạy Chế độ Xanh' : 'Kích hoạt Eco-Green'}</span>
-              </button>
-            </div>
-
-            {/* Scenario 3: Biomass Boiler Anomaly */}
+          <div className="p-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            {/* 1. CẤP 3 - TRƯỞNG BỘ PHẬN: Boiler & UHT Anomaly */}
             <div
               className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                 activeScenario === 'boiler_anomaly'
-                  ? 'bg-red-950/50 border-red-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
+                  ? 'bg-red-950/55 border-red-500/80 shadow-xs ring-1 ring-red-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
               }`}
             >
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-red-400">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>Sự cố Lò hơi Sinh khối</span>
-                  </div>
-                  <span className="text-[9.5px] bg-red-950 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
-                    CO₂ Vượt 138%
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700/70">
+                    Cấp 3 • Trưởng Bộ phận (Tháng)
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-red-950 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
+                    TB 142% • T10: 128%
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Buồng đốt tầng sôi lò trấu ép quá nhiệt, phát thải khói CO₂ tăng vọt tạo cảnh báo Critical cấp nhà máy.
+                <div className="flex items-center gap-1.5 font-bold text-red-400 mb-1">
+                  <Flame className="w-3.5 h-3.5 shrink-0" />
+                  <span>Nghẹt ghi Lò hơi & Quá nhiệt UHT</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Trấu ẩm gây sụt áp hơi Biomass, tự động đốt bù dầu FO & bật điện trở phụ UHT #01/#02: Thiết bị vọt 142%, PX Chế biến & KPI Tháng 10 đồng loạt vượt ngưỡng đỏ.
                 </p>
               </div>
               <button
                 onClick={() => applyPresetScenario('boiler_anomaly')}
                 className="mt-2.5 w-full py-1.5 px-2 bg-red-700 hover:bg-red-600 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>{activeScenario === 'boiler_anomaly' ? 'Đang mô phỏng Sự cố Lò hơi' : 'Mô phỏng Sự cố Lò hơi'}</span>
+                <span>{activeScenario === 'boiler_anomaly' ? 'Đang chạy: Sự cố Lò hơi & UHT' : 'Kích hoạt (Chuyển Cấp Bộ phận)'}</span>
               </button>
             </div>
 
-            {/* Scenario 4: CIP Water Pipe Burst */}
+            {/* 2. CẤP 3 - TRƯỞNG BỘ PHẬN: CIP Water Pipe Burst */}
             <div
               className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                 activeScenario === 'pipe_burst'
-                  ? 'bg-sky-950/50 border-sky-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
+                  ? 'bg-sky-950/55 border-sky-500/80 shadow-xs ring-1 ring-sky-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
               }`}
             >
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-400">
-                    <Droplet className="w-3.5 h-3.5" />
-                    <span>Bục Đường ống Nước CIP</span>
-                  </div>
-                  <span className="text-[9.5px] bg-sky-950 text-sky-300 border border-sky-700 px-1.5 py-0.5 rounded">
-                    Nước Vượt 145%
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-700/70">
+                    Cấp 3 • Trưởng Bộ phận (Tháng)
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-sky-950 text-sky-300 border border-sky-700 px-1.5 py-0.5 rounded">
+                    CIP 146% • T10: 137%
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Vỡ gioăng áp lực đường ống nước vệ sinh CIP tại Xưởng Chế biến, lưu lượng nước sạch nhảy vọt bừng đỏ SCADA.
+                <div className="flex items-center gap-1.5 font-bold text-sky-400 mb-1">
+                  <Droplet className="w-3.5 h-3.5 shrink-0" />
+                  <span>Bục Van Áp lực Đường ống CIP</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Vỡ gioăng chịu nhiệt EPDM trạm rửa CIP & kẹt van xả bồn trộn 5000L: Lưu lượng nước CIP vọt 146%, kéo tổng nước PX Chế biến & Tháng 10 (55/40 m³) bừng đỏ.
                 </p>
               </div>
               <button
                 onClick={() => applyPresetScenario('pipe_burst')}
                 className="mt-2.5 w-full py-1.5 px-2 bg-sky-700 hover:bg-sky-600 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>{activeScenario === 'pipe_burst' ? 'Đang mô phỏng Bục ống CIP' : 'Mô phỏng Bục ống CIP'}</span>
+                <span>{activeScenario === 'pipe_burst' ? 'Đang chạy: Bục ống Nước CIP' : 'Kích hoạt (Chuyển Cấp Bộ phận)'}</span>
               </button>
             </div>
 
-            {/* Scenario 5: Solar Peak */}
+            {/* 3. CẤP 2 - QUẢN ĐỐC NHÀ MÁY: Peak Load Overlap */}
             <div
               className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                activeScenario === 'solar_peak'
-                  ? 'bg-amber-950/40 border-amber-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
+                activeScenario === 'peak_production'
+                  ? 'bg-amber-950/55 border-amber-500/80 shadow-xs ring-1 ring-amber-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
               }`}
             >
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
-                    <Sun className="w-3.5 h-3.5" />
-                    <span>Nắng Đạt đỉnh (100% Solar)</span>
-                  </div>
-                  <span className="text-[9.5px] bg-amber-950 text-amber-300 border border-amber-700 px-1.5 py-0.5 rounded">
-                    5.4 MWp Tối đa
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/70">
+                    Cấp 2 • Quản đốc NM (Quý)
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-red-950 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
+                    3 PX &gt;115% • Q4: 123%
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Bức xạ mặt trời cực đại giữa trưa, hệ thống điện áp mái tự sản xuất 100% điện sạch cấp toàn bộ kho thông minh AS/RS.
+                <div className="flex items-center gap-1.5 font-bold text-amber-300 mb-1">
+                  <Zap className="w-3.5 h-3.5 shrink-0" />
+                  <span>Chồng lấn Phụ tải Đỉnh 3 Phân xưởng</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Cả 3 Phân xưởng cùng chạy 100% dây chuyền UHT, Chiết rót & Chiller đúng Giờ Cao điểm EVN (3.250đ): Cả 3 PX và tổng Quý IV Nhà máy (6.150/5.000 kWh) vượt ngưỡng đỏ.
                 </p>
               </div>
               <button
-                onClick={() => applyPresetScenario('solar_peak')}
-                className="mt-2.5 w-full py-1.5 px-2 bg-slate-750 hover:bg-slate-700 border border-slate-650 text-amber-300 hover:text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
+                onClick={() => applyPresetScenario('peak_production')}
+                className="mt-2.5 w-full py-1.5 px-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>Kích hoạt Nắng cực đại</span>
+                <span>{activeScenario === 'peak_production' ? 'Đang chạy: Chồng lấn Phụ tải' : 'Kích hoạt (Chuyển Quản đốc NM)'}</span>
               </button>
             </div>
 
-            {/* Scenario 6: EVN Peak Tariff */}
+            {/* 4. CẤP 2 - QUẢN ĐỐC NHÀ MÁY: Rainstorm Solar Drop & EVN Grid Backup */}
             <div
               className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                 activeScenario === 'grid_brownout'
-                  ? 'bg-amber-950/50 border-amber-500/80 shadow-xs'
-                  : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-600'
+                  ? 'bg-amber-950/55 border-amber-500/80 shadow-xs ring-1 ring-amber-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
               }`}
             >
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-400">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Giờ Cao điểm Điện lực EVN</span>
-                  </div>
-                  <span className="text-[9.5px] bg-amber-950 text-amber-300 border border-amber-700 px-1.5 py-0.5 rounded">
-                    3.250 đ/kWh
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/70">
+                    Cấp 2 • Quản đốc NM (Quý)
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-red-950 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
+                    Solar 3.2% • CO₂: 124%
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Lưới điện bước vào khung giờ cao điểm (3.250 đ/kWh), tự động sinh cảnh báo điều tiết chuyển sạc pin xe nâng sang ban đêm.
+                <div className="flex items-center gap-1.5 font-bold text-amber-400 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Mưa bão Sụt áp Solar — Đóng bù Lưới EVN</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Mưa bão làm mất 85% công suất Solar áp mái, buộc đóng máy cắt lấy 80.5% điện lưới EVN giờ cao điểm (0.72 kg CO₂/kWh): Phát thải CO₂ & Điện Quý IV vượt định mức.
                 </p>
               </div>
               <button
                 onClick={() => applyPresetScenario('grid_brownout')}
-                className="mt-2.5 w-full py-1.5 px-2 bg-slate-750 hover:bg-slate-700 border border-slate-650 text-amber-300 hover:text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
+                className="mt-2.5 w-full py-1.5 px-2 bg-slate-750 hover:bg-slate-700 border border-amber-600/60 text-amber-300 hover:text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
               >
-                <span>Kích hoạt Cao điểm EVN</span>
+                <span>{activeScenario === 'grid_brownout' ? 'Đang chạy: Sụt áp Solar & Bù EVN' : 'Kích hoạt (Chuyển Quản đốc NM)'}</span>
+              </button>
+            </div>
+
+            {/* 5. CẤP 1 - BAN GIÁM ĐỐC: Enterprise Export Surge (All 3 Factories Over Quota) */}
+            <div
+              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
+                activeScenario === 'solar_peak'
+                  ? 'bg-rose-950/55 border-rose-500/80 shadow-xs ring-1 ring-rose-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-700/70">
+                    Cấp 1 • Ban Giám đốc (Năm)
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-red-950 text-red-300 border border-red-700 px-1.5 py-0.5 rounded">
+                    3 NM &gt;120% • Năm: 111%
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-bold text-rose-400 mb-1">
+                  <Activity className="w-3.5 h-3.5 shrink-0" />
+                  <span>Tăng tốc Xuất khẩu — Vượt Trần 3 Nhà máy</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Tổ hợp 3 Nhà máy (Bình Dương, Mega Dairy, Thống Nhất) chạy tối đa 3 ca/ngày: Cả 3 Nhà máy, 3 Thẻ KPI Tập đoàn (Điện, CO₂, Nước) & Dự phòng TK 642 đồng loạt báo đỏ.
+                </p>
+              </div>
+              <button
+                onClick={() => applyPresetScenario('solar_peak')}
+                className="mt-2.5 w-full py-1.5 px-2 bg-rose-700 hover:bg-rose-600 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
+              >
+                <span>{activeScenario === 'solar_peak' ? 'Đang chạy: Vượt Trần 3 Nhà máy' : 'Kích hoạt (Chuyển Ban Giám đốc)'}</span>
+              </button>
+            </div>
+
+            {/* 6. CẤP 1 - BAN GIÁM ĐỐC & TOÀN MẠNG LƯỚI: Eco-Green RE100 Optimization */}
+            <div
+              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
+                activeScenario === 'eco_green'
+                  ? 'bg-emerald-950/55 border-emerald-500/80 shadow-xs ring-1 ring-emerald-500/40'
+                  : 'bg-slate-800/75 border-slate-700/80 hover:border-slate-600'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/70">
+                    Cấp 1–3 • Toàn Tập đoàn
+                  </span>
+                  <span className="text-[9.5px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded">
+                    Xanh 42.5% • Tải 62%
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-bold text-emerald-400 mb-1">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Điều độ Xanh RE100 Toàn diện (Net Zero)</span>
+                </div>
+                <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                  Huy động 100% Solar 5.4 MWp, Lò hơi Biomass & dịch chuyển phụ tải kho lạnh AS/RS sang giờ thấp điểm đêm: Nâng tỷ lệ năng lượng sạch lên 42.5%, đưa cả 3 cấp về vùng Xanh.
+                </p>
+              </div>
+              <button
+                onClick={() => applyPresetScenario('eco_green')}
+                className="mt-2.5 w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
+              >
+                <span>{activeScenario === 'eco_green' ? 'Đang chạy: Điều độ Xanh RE100' : 'Kích hoạt Điều độ Xanh RE100'}</span>
               </button>
             </div>
           </div>
@@ -589,7 +607,7 @@ export const SimulationControlPanel: React.FC = () => {
                   <div className="text-[9.5px] opacity-80 leading-tight">
                     {anomalyTarget === 'closed_period'
                       ? role === 'bod' ? '+4.500 kWh (6T Đầu)' : role === 'factory_director' ? '+450 kWh (Quý III)' : '+45 kWh (Tháng 9)'
-                      : role === 'bod' ? '+19.000 kWh (6T Cuối)' : role === 'factory_director' ? '+2.650 kWh (Quý IV)' : '+150 kWh (Tháng 10)'}
+                      : role === 'bod' ? '+24.500 kWh + 3 NM Vượt' : role === 'factory_director' ? '+2.450 kWh + 3 PX Vượt' : '+220 kWh + TB Vượt 142%'}
                   </div>
                 </button>
 
@@ -608,7 +626,7 @@ export const SimulationControlPanel: React.FC = () => {
                   <div className="text-[9.5px] opacity-80 leading-tight">
                     {anomalyTarget === 'closed_period'
                       ? role === 'bod' ? '+3.200 kg (6T Đầu)' : role === 'factory_director' ? '+320 kg (Quý III)' : '+35 kg (Tháng 9)'
-                      : role === 'bod' ? '+14.000 kg (6T Cuối)' : role === 'factory_director' ? '+1.900 kg (Quý IV)' : '+115 kg (Tháng 10)'}
+                      : role === 'bod' ? '+18.500 kg + 3 NM Vượt' : role === 'factory_director' ? '+1.750 kg + 3 PX Vượt' : '+165 kg + TB Vượt 142%'}
                   </div>
                 </button>
 
@@ -627,7 +645,7 @@ export const SimulationControlPanel: React.FC = () => {
                   <div className="text-[9.5px] opacity-80 leading-tight">
                     {anomalyTarget === 'closed_period'
                       ? role === 'bod' ? '+380 m³ (6T Đầu)' : role === 'factory_director' ? '+35 m³ (Quý III)' : '+4 m³ (Tháng 9)'
-                      : role === 'bod' ? '+1.700 m³ (6T Cuối)' : role === 'factory_director' ? '+220 m³ (Quý IV)' : '+15 m³ (Tháng 10)'}
+                      : role === 'bod' ? '+2.150 m³ + 3 NM Vượt' : role === 'factory_director' ? '+210 m³ + 3 PX Vượt' : '+22 m³ + TB Vượt 142%'}
                   </div>
                 </button>
               </div>

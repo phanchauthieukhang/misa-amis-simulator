@@ -1,6 +1,62 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+// Pre-hydration cleanup at module evaluation time:
+// Removes Bitdefender / browser extension attributes (bis_skin_checked, bis_register, __processed_*)
+// from Next.js internal <__next_metadata_boundary__><div hidden> before React hydrateRoot runs.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  try {
+    const origSetAttr = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name: string, value: string) {
+      if (
+        typeof name === 'string' &&
+        (name.startsWith('bis_') || name.startsWith('__processed_'))
+      ) {
+        return;
+      }
+      return origSetAttr.call(this, name, value);
+    };
+
+    const cleanDom = () => {
+      const all = document.getElementsByTagName('*');
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (!el.attributes) continue;
+        for (let j = el.attributes.length - 1; j >= 0; j--) {
+          const name = el.attributes[j].name;
+          if (name.startsWith('bis_') || name.startsWith('__processed_')) {
+            el.removeAttribute(name);
+          }
+        }
+      }
+    };
+
+    cleanDom();
+
+    const obs = new MutationObserver((mutations) => {
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
+        if (
+          m.type === 'attributes' &&
+          m.attributeName &&
+          (m.attributeName.startsWith('bis_') || m.attributeName.startsWith('__processed_'))
+        ) {
+          (m.target as Element).removeAttribute(m.attributeName);
+        } else if (m.type === 'childList') {
+          cleanDom();
+        }
+      }
+    });
+    obs.observe(document.documentElement, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  } catch {
+    // ignore
+  }
+}
 import { Topbar } from '@/components/Topbar';
 import { Sidebar } from '@/components/Sidebar';
 import { AppsLauncherModal } from '@/components/AppsLauncherModal';
@@ -17,9 +73,18 @@ import { ESGToast } from '@/components/esg/ESGToast';
 import { RefreshCw, SlidersHorizontal, Plus } from 'lucide-react';
 
 export default function Home() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isAppsModalOpen, setIsAppsModalOpen] = useState(false);
   const [activeNavId, setActiveNavId] = useState('esg-dashboard');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
 
   const navLabels: Record<string, string> = {
     dashboard: 'Bàn làm việc tổng quan',

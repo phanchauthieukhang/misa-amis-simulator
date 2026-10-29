@@ -18,8 +18,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={inter.className}>
-      <body className="h-screen w-screen overflow-hidden bg-[#f4f5f8] text-slate-800 antialiased flex flex-col">
+    <html lang="vi" className={inter.className} suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="h-screen w-screen overflow-hidden bg-[#f4f5f8] text-slate-800 antialiased flex flex-col"
+      >
         {children}
       </body>
     </html>

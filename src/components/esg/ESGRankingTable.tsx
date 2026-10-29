@@ -5,10 +5,15 @@ import { useESGSimulation } from '@/context/ESGSimulationContext';
 import { Award, ArrowUpRight } from 'lucide-react';
 
 export const ESGRankingTable: React.FC = () => {
-  const { role, factories, selectedFactoryId, selectedWorkshopId, navigateTo } = useESGSimulation();
+  const { role, factories, selectedFactoryId, selectedWorkshopId, scopedTotals, navigateTo } = useESGSimulation();
 
   const currentFactory = factories.find((f) => f.id === selectedFactoryId) || factories[0];
   const currentWorkshop = currentFactory.workshops.find((w) => w.id === selectedWorkshopId) || currentFactory.workshops[0];
+
+  const isClosed = scopedTotals.isClosedPeriod;
+  const closedPRatio = scopedTotals.effectivePowerLimit > 0 ? scopedTotals.powerKWh / scopedTotals.effectivePowerLimit : 1;
+  const closedCRatio = scopedTotals.effectiveCo2Limit > 0 ? scopedTotals.co2Kg / scopedTotals.effectiveCo2Limit : 1;
+  const closedWRatio = scopedTotals.effectiveWaterLimit > 0 ? scopedTotals.waterM3 / scopedTotals.effectiveWaterLimit : 1;
 
   let rankingTitle = '';
   let rankingList: {
@@ -27,10 +32,14 @@ export const ESGRankingTable: React.FC = () => {
     rankingTitle = 'Xếp hạng tiêu thụ năng lượng theo Nhà máy';
     rankingList = [...factories]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
-      .map((f) => {
-        const pRatio = f.totals.powerKWh / 5000;
-        const cRatio = f.totals.co2Kg / 3500;
-        const wRatio = f.totals.waterM3 / 400;
+      .map((f, idx) => {
+        const power = isClosed && closedPRatio >= 1.0 && idx === 0 ? Math.round(5000 * Math.max(closedPRatio, 1.06)) : f.totals.powerKWh;
+        const co2 = isClosed && closedCRatio >= 1.0 && idx === 0 ? Math.round(3500 * Math.max(closedCRatio, 1.06)) : f.totals.co2Kg;
+        const water = isClosed && closedWRatio >= 1.0 && idx === 0 ? Math.round(400 * Math.max(closedWRatio, 1.06)) : f.totals.waterM3;
+
+        const pRatio = power / 5000;
+        const cRatio = co2 / 3500;
+        const wRatio = water / 400;
         const maxRatio = Math.max(pRatio, cRatio, wRatio);
         const itemStatus: 'normal' | 'warning' | 'danger' =
           maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
@@ -40,9 +49,9 @@ export const ESGRankingTable: React.FC = () => {
           targetType: 'factory' as const,
           name: f.name,
           code: f.code,
-          power: f.totals.powerKWh,
-          co2: f.totals.co2Kg,
-          water: f.totals.waterM3,
+          power,
+          co2,
+          water,
           status: itemStatus,
           sub: f.location,
         };
@@ -51,10 +60,14 @@ export const ESGRankingTable: React.FC = () => {
     rankingTitle = `Xếp hạng tiêu thụ theo Phân xưởng (${currentFactory.name})`;
     rankingList = [...currentFactory.workshops]
       .sort((a, b) => b.totals.powerKWh - a.totals.powerKWh)
-      .map((w) => {
-        const pRatio = w.totals.powerKWh / 2500;
-        const cRatio = w.totals.co2Kg / 1800;
-        const wRatio = w.totals.waterM3 / 250;
+      .map((w, idx) => {
+        const power = isClosed && closedPRatio >= 1.0 && idx === 0 ? Math.round(2500 * Math.max(closedPRatio, 1.06)) : w.totals.powerKWh;
+        const co2 = isClosed && closedCRatio >= 1.0 && idx === 0 ? Math.round(1800 * Math.max(closedCRatio, 1.06)) : w.totals.co2Kg;
+        const water = isClosed && closedWRatio >= 1.0 && idx === 0 ? Math.round(250 * Math.max(closedWRatio, 1.06)) : w.totals.waterM3;
+
+        const pRatio = power / 2500;
+        const cRatio = co2 / 1800;
+        const wRatio = water / 250;
         const maxRatio = Math.max(pRatio, cRatio, wRatio);
         const itemStatus: 'normal' | 'warning' | 'danger' =
           maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
@@ -64,9 +77,9 @@ export const ESGRankingTable: React.FC = () => {
           targetType: 'workshop' as const,
           name: w.name,
           code: w.code,
-          power: w.totals.powerKWh,
-          co2: w.totals.co2Kg,
-          water: w.totals.waterM3,
+          power,
+          co2,
+          water,
           status: itemStatus,
           sub: `Quản lý: ${w.manager} • ${w.deviceCount} thiết bị`,
         };
@@ -75,10 +88,27 @@ export const ESGRankingTable: React.FC = () => {
     rankingTitle = `Xếp hạng tiêu thụ theo Thiết bị (${currentWorkshop.name})`;
     rankingList = [...currentWorkshop.devices]
       .sort((a, b) => (b.readings.power?.value || 0) - (a.readings.power?.value || 0))
-      .map((d) => {
-        const pRatio = d.readings.power ? d.readings.power.value / d.readings.power.max : 0;
-        const cRatio = d.readings.co2 ? d.readings.co2.value / d.readings.co2.max : 0;
-        const wRatio = d.readings.water ? d.readings.water.value / d.readings.water.max : 0;
+      .map((d, idx) => {
+        const pMax = d.readings.power?.max || 600;
+        const cMax = d.readings.co2?.max || 440;
+        const wMax = d.readings.water?.max || 45;
+
+        const power =
+          isClosed && closedPRatio >= 1.0 && idx === 0
+            ? Math.round(pMax * Math.max(closedPRatio, 1.05))
+            : d.readings.power?.value || 0;
+        const co2 =
+          isClosed && closedCRatio >= 1.0 && idx === 0
+            ? Math.round(cMax * Math.max(closedCRatio, 1.05))
+            : d.readings.co2?.value || 0;
+        const water =
+          isClosed && closedWRatio >= 1.0 && idx === 0
+            ? Math.round(wMax * Math.max(closedWRatio, 1.05))
+            : d.readings.water?.value || 0;
+
+        const pRatio = d.readings.power ? power / pMax : 0;
+        const cRatio = d.readings.co2 ? co2 / cMax : 0;
+        const wRatio = d.readings.water ? water / wMax : 0;
         const maxRatio = Math.max(pRatio, cRatio, wRatio);
         const itemStatus: 'normal' | 'warning' | 'danger' =
           maxRatio >= 1.0 ? 'danger' : maxRatio >= 0.8 ? 'warning' : 'normal';
@@ -88,9 +118,9 @@ export const ESGRankingTable: React.FC = () => {
           targetType: 'device' as const,
           name: d.name,
           code: d.code,
-          power: d.readings.power?.value || 0,
-          co2: d.readings.co2?.value || 0,
-          water: d.readings.water?.value || 0,
+          power,
+          co2,
+          water,
           status: itemStatus,
           sub: d.specification,
         };

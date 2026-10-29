@@ -19,32 +19,55 @@ interface EnergySource {
 }
 
 export const ESGRenewableEnergyWidget: React.FC = () => {
-  const { scopedTotals } = useESGSimulation();
+  const { scopedTotals, weatherCondition, activeScenario } = useESGSimulation();
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
 
-  // Dynamic calculation based on current scoped power consumption
+  // Dynamic calculation based on current scoped power consumption, weather & scenario
   const totalPowerKWh = scopedTotals?.powerKWh || 82100;
 
-  // Breakdown percentages matching Vinamilk Green Farm & Net Zero operational profile
-  const solarKWh = Math.round(totalPowerKWh * 0.185);
-  const biomassKWh = Math.round(totalPowerKWh * 0.123);
-  const biogasKWh = Math.round(totalPowerKWh * 0.040);
+  let solarPct = 18.5;
+  let biomassPct = 12.3;
+  let biogasPct = 4.0;
+
+  if (activeScenario === 'eco_green') {
+    solarPct = 24.0;
+    biomassPct = 14.0;
+    biogasPct = 4.5;
+  } else if (weatherCondition === 'rainy' || activeScenario === 'grid_brownout') {
+    solarPct = 3.2; // Sụt giảm 85% bức xạ do mưa bão
+    biomassPct = 12.3;
+    biogasPct = 4.0;
+  } else if (weatherCondition === 'cloudy') {
+    solarPct = 11.2; // 60% bức xạ mặt trời
+    biomassPct = 12.3;
+    biogasPct = 4.0;
+  } else if (activeScenario === 'boiler_anomaly') {
+    solarPct = 18.5;
+    biomassPct = 6.8; // Nghẹt ghi lò hơi trấu ép, đốt bù dầu DO/FO
+    biogasPct = 4.0;
+  }
+
+  const evnPct = Number((100 - solarPct - biomassPct - biogasPct).toFixed(1));
+  const currentGreenPct = Number((solarPct + biomassPct + biogasPct).toFixed(1));
+  const targetGreenPct = 40.0;
+  const progressToTarget = Math.round((currentGreenPct / targetGreenPct) * 100);
+
+  // Breakdown kWh matching dynamic percentages
+  const solarKWh = Math.round(totalPowerKWh * (solarPct / 100));
+  const biomassKWh = Math.round(totalPowerKWh * (biomassPct / 100));
+  const biogasKWh = Math.round(totalPowerKWh * (biogasPct / 100));
   const evnKWh = Math.max(0, totalPowerKWh - solarKWh - biomassKWh - biogasKWh);
 
   const greenKWh = solarKWh + biomassKWh + biogasKWh;
   // Avoided emissions: clean energy replaces EVN coal/gas thermal grid mix (~0.72 kg CO2e / kWh)
   const co2AvoidedKg = Math.round(greenKWh * 0.72);
 
-  const currentGreenPct = 34.8;
-  const targetGreenPct = 40.0;
-  const progressToTarget = Math.round((currentGreenPct / targetGreenPct) * 100);
-
   const sources: EnergySource[] = [
     {
       id: 'solar',
       name: 'Điện mặt trời áp mái (Solar Rooftop)',
       category: 'renewable',
-      percentage: 18.5,
+      percentage: solarPct,
       consumptionKWh: solarKWh,
       co2ReductionKg: Math.round(solarKWh * 0.72),
       color: 'bg-amber-500',
@@ -57,7 +80,7 @@ export const ESGRenewableEnergyWidget: React.FC = () => {
       id: 'biomass',
       name: 'Nhiên liệu Sinh khối (Biomass Boiler)',
       category: 'renewable',
-      percentage: 12.3,
+      percentage: biomassPct,
       consumptionKWh: biomassKWh,
       co2ReductionKg: Math.round(biomassKWh * 0.72),
       color: 'bg-emerald-600',
@@ -70,7 +93,7 @@ export const ESGRenewableEnergyWidget: React.FC = () => {
       id: 'biogas',
       name: 'Khí sinh học Biogas (Trang trại Green Farm)',
       category: 'renewable',
-      percentage: 4.0,
+      percentage: biogasPct,
       consumptionKWh: biogasKWh,
       co2ReductionKg: Math.round(biogasKWh * 0.72),
       color: 'bg-teal-500',
@@ -83,7 +106,7 @@ export const ESGRenewableEnergyWidget: React.FC = () => {
       id: 'evn_grid',
       name: 'Lưới điện truyền tải EVN (Lưới quốc gia)',
       category: 'grid',
-      percentage: 65.2,
+      percentage: evnPct,
       consumptionKWh: evnKWh,
       co2ReductionKg: 0,
       color: 'bg-slate-400',

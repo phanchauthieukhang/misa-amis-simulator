@@ -12,8 +12,47 @@ export const ESGTrendChart: React.FC = () => {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [showQuotaLine, setShowQuotaLine] = useState<boolean>(true);
 
-  const rawData =
+  const baseData =
     ESG_TREND_DATA[timePeriod as keyof typeof ESG_TREND_DATA] || ESG_TREND_DATA.year;
+
+  // Quota benchmark calculations per step
+  const numPoints = Math.max(1, baseData.length);
+  const quotaPower = Math.round(scopedTotals.effectivePowerLimit / numPoints);
+  const quotaCo2 = Math.round(scopedTotals.effectiveCo2Limit / numPoints);
+  const quotaWater = Number((scopedTotals.effectiveWaterLimit / numPoints).toFixed(1));
+
+  // Dynamically synchronize the active/current data point(s) with real-time scopedTotals
+  // so that any scenario or anomaly that pushes KPI totals over 100% also pushes the trend line over the 100% Quota Line!
+  const pRatio = scopedTotals.effectivePowerLimit > 0 ? scopedTotals.powerKWh / scopedTotals.effectivePowerLimit : 0.7;
+  const cRatio = scopedTotals.effectiveCo2Limit > 0 ? scopedTotals.co2Kg / scopedTotals.effectiveCo2Limit : 0.7;
+  const wRatio = scopedTotals.effectiveWaterLimit > 0 ? scopedTotals.waterM3 / scopedTotals.effectiveWaterLimit : 0.7;
+
+  // Determine which index in the series represents the active live (or audited closing) point
+  const getActivePointIndex = () => {
+    if (timePeriod === 'm10_2026') return 2; // Tuần 3 (T10 - Hiện tại)
+    if (timePeriod === 'q4_2026') return 0; // Tháng 10 (Hiện tại)
+    if (timePeriod === 'h2_2026') return 3; // Tháng 10 (Hiện tại)
+    if (timePeriod === 'year_2026') return 3; // Quý IV (Đang chạy live)
+    if (timePeriod === 'today') return 3; // Ca 2 (12h-16h)
+    return baseData.length - 1; // Điểm chốt kỳ cho h1_2026, q3_2026, m9_2026
+  };
+
+  const activeIdx = getActivePointIndex();
+
+  const rawData = baseData.map((d, idx) => {
+    if (idx === activeIdx) {
+      return {
+        ...d,
+        power: pRatio >= 1.0 ? Math.round(quotaPower * Math.max(pRatio * 1.04, 1.12)) : Math.round(quotaPower * pRatio * 1.05),
+        co2: cRatio >= 1.0 ? Math.round(quotaCo2 * Math.max(cRatio * 1.04, 1.14)) : Math.round(quotaCo2 * cRatio * 1.05),
+        water:
+          wRatio >= 1.0
+            ? Number((quotaWater * Math.max(wRatio * 1.04, 1.15)).toFixed(1))
+            : Number((quotaWater * wRatio * 1.05).toFixed(1)),
+      };
+    }
+    return d;
+  });
 
   const getPeriodDescription = () => {
     switch (timePeriod) {
@@ -55,16 +94,10 @@ export const ESGTrendChart: React.FC = () => {
   const chartW = width - paddingX * 2;
   const chartH = height - paddingY * 2;
 
-  // Quota benchmark calculations per step
-  const numPoints = Math.max(1, rawData.length);
-  const quotaPower = Math.round(scopedTotals.effectivePowerLimit / numPoints);
-  const quotaCo2 = Math.round(scopedTotals.effectiveCo2Limit / numPoints);
-  const quotaWater = Number((scopedTotals.effectiveWaterLimit / numPoints).toFixed(1));
-
   // Max values for normalization, padded to give headroom above quota line
-  const maxPower = Math.max(...rawData.map((d) => d.power), quotaPower * 1.15, 100);
-  const maxCo2 = Math.max(...rawData.map((d) => d.co2), quotaCo2 * 1.15, 50);
-  const maxWater = Math.max(...rawData.map((d) => d.water), quotaWater * 1.15, 10);
+  const maxPower = Math.max(...rawData.map((d) => d.power), quotaPower * 1.25, 100);
+  const maxCo2 = Math.max(...rawData.map((d) => d.co2), quotaCo2 * 1.25, 50);
+  const maxWater = Math.max(...rawData.map((d) => d.water), quotaWater * 1.25, 10);
 
   // Active quota config for the reference line
   let activeQuotaVal = quotaPower;
@@ -418,7 +451,9 @@ export const ESGTrendChart: React.FC = () => {
           >
             <div className="font-bold text-teal-400 border-b border-slate-700 pb-1.5 mb-2 flex items-center justify-between">
               <span>{rawData[hoverIndex].time}</span>
-              {rawData[hoverIndex].power > quotaPower && (
+              {(rawData[hoverIndex].power > quotaPower ||
+                rawData[hoverIndex].co2 > quotaCo2 ||
+                rawData[hoverIndex].water > quotaWater) && (
                 <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> VƯỢT ĐỊNH MỨC
                 </span>
